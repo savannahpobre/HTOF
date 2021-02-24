@@ -3,7 +3,7 @@ Module for fitting astrometric data.
 
 Author: G. Mirek Brandt
 """
-from numba import jit
+#from numba import jit
 import numpy as np
 import warnings
 from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix, transform_coefficients_to_unnormalized_domain
@@ -225,7 +225,7 @@ class AstrometricFastFitter(AstrometricFitter):
         raise NotImplementedError('AstrometricFastFitter cannot implement the normed=True fit feature')
 
 
-@jit(nopython=True)
+#@jit(nopython=True)
 def fast_fit_line(chi2mat, ra_solution_vecs, dec_solution_vecs, ra_vs_epoch, dec_vs_epoch):
     return np.linalg.solve(chi2mat, np.dot(ra_vs_epoch, ra_solution_vecs) + np.dot(dec_vs_epoch, dec_solution_vecs))
 
