@@ -1,5 +1,4 @@
 astropy>=2.0
-numba>=0.50
 pandas>=0.24.0
 scipy>=1.0.0
 numpy>=1.17

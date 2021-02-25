@@ -1,3 +1,7 @@
+0.3.4 (2020-02-24)
+------------------
+- Removed the numba speed up from FastFitter. Will add it back in if there is ever a need for a fast fitter.
+
 0.3.3 (2020-12-23)
 ------------------
 - Added Gaia eDR3 deadtimes and a GaiaeDR3 class for Gaia early data release3.
