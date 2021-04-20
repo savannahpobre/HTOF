@@ -28,7 +28,7 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
     ra_resid = Angle(data.residuals.values * np.sin(data.scan_angle.values), unit='mas')
     dec_resid = Angle(data.residuals.values * np.cos(data.scan_angle.values), unit='mas')
     # instantiate fitter
-    fitter = AstrometricFitter(data.inverse_covariance_matrix, year_epochs, normed=False,
+    fitter = AstrometricFitter(data.inverse_covariance_matrix, year_epochs,
                                use_parallax=use_parallax, fit_degree=fit_degree,
                                parallactic_pertubations={'ra_plx': Angle(ra_motion, 'degree').mas,
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})

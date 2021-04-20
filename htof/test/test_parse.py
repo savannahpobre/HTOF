@@ -138,7 +138,6 @@ class TestHipparcosRereductionDVDBook:
         assert data.rejected_epochs == []
 
 
-
 class TestHipparcosRereductionJavaTool:
     test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
 

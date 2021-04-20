@@ -1,4 +1,11 @@
-0.3.4 (2020-02-24)
+0.3.5 (2021-04-19)
+------------------
+- Fixed improper syntax calls to panda etc. so that warnings are silence in python 3.8 and beyond.
+- We have a deprecated call that cannot be fixed, and appears to be
+  located upstream in ipython https://github.com/ipython/ipykernel/issues/560
+- Removed normed option for fitting.
+
+0.3.4 (2021-02-24)
 ------------------
 - Removed the numba speed up from FastFitter. Will add it back in if there is ever a need for a fast fitter.
 

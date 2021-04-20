@@ -94,7 +94,7 @@ def test_Hip1_fit_to_hip27321():
     # generate fitter and parse intermediate data
     astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
-                       central_ra=cntr_ra, central_dec=cntr_dec, normed=False)
+                       central_ra=cntr_ra, central_dec=cntr_dec)
     chisq = np.sum(astro.data.residuals ** 2 / astro.data.along_scan_errs ** 2)
     # generate ra and dec for each observation.
     year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
@@ -124,7 +124,7 @@ def test_Hip1_fit_to_hip44801():
     # generate fitter and parse intermediate data
     astro = Astrometry('Hip1', '44801', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
-                       central_ra=cntr_ra, central_dec=cntr_dec, normed=False)
+                       central_ra=cntr_ra, central_dec=cntr_dec)
     chisq = np.sum(astro.data.residuals ** 2 / astro.data.along_scan_errs ** 2)
     # generate ra and dec for each observation.
     year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
@@ -154,7 +154,7 @@ def test_Hip1_fit_to_hip70000():
     # generate fitter and parse intermediate data
     astro = Astrometry('Hip1', '70000', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
-                       central_ra=cntr_ra, central_dec=cntr_dec, normed=False)
+                       central_ra=cntr_ra, central_dec=cntr_dec)
     chisq = np.sum(astro.data.residuals ** 2 / astro.data.along_scan_errs ** 2)
     # generate ra and dec for each observation.
     year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
@@ -183,7 +183,7 @@ def test_Hip1_fit_to_hip27321_no_parallax():
     # generate fitter and parse intermediate data
     astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1,
-                       use_parallax=False, normed=False)
+                       use_parallax=False)
     chisq = np.sum(astro.data.residuals ** 2 / astro.data.along_scan_errs ** 2)
     # generate ra and dec for each observation.
     year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
@@ -231,7 +231,7 @@ def test_optimal_central_epochs_forHip1_hip27321():
 def test_optimal_central_epochs_forHip1_hip27321_no_parallax():
     astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1,
-                       use_parallax=False, normed=False)
+                       use_parallax=False)
     central_epoch = astro.optimal_central_epochs()
     central_epoch_ra, central_epoch_dec = central_epoch['ra'], central_epoch['dec']
     #print(central_epoch_ra, central_epoch_dec)

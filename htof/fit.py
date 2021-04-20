@@ -29,9 +29,7 @@ class AstrometricFitter(object):
     def __init__(self, inverse_covariance_matrices=None, epoch_times=None,
                  astrometric_chi_squared_matrices=None, astrometric_solution_vector_components=None,
                  parallactic_pertubations=None, fit_degree=1, use_parallax=False,
-                 central_epoch_ra=0, central_epoch_dec=0, normed=False):
-        if normed:
-            self._on_normed()
+                 central_epoch_ra=0, central_epoch_dec=0):
         if parallactic_pertubations is None:
             parallactic_pertubations = {'ra_plx': np.zeros_like(epoch_times),
                                         'dec_plx': np.zeros_like(epoch_times)}
@@ -42,7 +40,6 @@ class AstrometricFitter(object):
         self.fit_degree = fit_degree
         self.central_epoch_dec = central_epoch_dec
         self.central_epoch_ra = central_epoch_ra
-        self.normed = normed
         self.ra_epochs, self.dec_epochs = self._init_epochs()
 
         if astrometric_solution_vector_components is None:
@@ -77,16 +74,16 @@ class AstrometricFitter(object):
         :return: float. The reference epoch which makes the positional and proper motion covariance zero
         in the coordinate specified (either ra or dec).
         """
-        if coordinate is not 'ra' and coordinate is not 'dec':
+        if coordinate != 'ra' and coordinate != 'dec':
             raise ValueError('coordinate kwarg must be either ra or dec')
         # get the row (i) and column (j) that we are going to try and minimize in the covariance matrix
         row_coord, col_coord = {}, {}
-        if coordinate is 'ra':
+        if coordinate =='ra':
             row_coord['pm_pos_covariance'] = 1
             col_coord['pm_pos_covariance'] = 3
             row_coord['pm_variance'] = 3
             col_coord['pm_variance'] = 3
-        if coordinate is 'dec':
+        if coordinate == 'dec':
             row_coord['pm_pos_covariance'] = 2
             col_coord['pm_pos_covariance'] = 4
             row_coord['pm_variance'] = 4
@@ -118,11 +115,6 @@ class AstrometricFitter(object):
         cov_matrix = np.linalg.pinv(icov_matrix, hermitian=True)
         return cov_matrix
 
-    def _on_normed(self):
-        warnings.warn('the normed fitting option (normed=True) will be removed in a future release.'
-                      ' Do not use normed=True because it will cause the returned fit errors to be incorrect.',
-                      PendingDeprecationWarning)
-
     def fit_line(self, ra_vs_epoch, dec_vs_epoch, return_all=False):
         """
         :param ra_vs_epoch: 1d array of right ascension, ordered the same as the covariance matrices and epochs.
@@ -143,16 +135,6 @@ class AstrometricFitter(object):
                              self.ra_epochs, self.dec_epochs,
                              self.inverse_covariance_matrices, **self.parallactic_pertubations,
                              use_parallax=self.use_parallax)
-        if self.normed:
-            # transforming out of normalized coordinates.
-            c_ra, c_dec = self.central_epoch_ra, self.central_epoch_dec
-            t = self.epoch_times
-            solution = transform_coefficients_to_unnormalized_domain(solution, t.min() - c_ra, t.max() - c_ra,
-                                                                     t.min() - c_dec, t.max() - c_dec, self.use_parallax)
-            # TODO : One should not transform the errors like the solution vector.
-            # TODO: easy but bulky way: reconstruct the chi^2 matrix here.
-            errors = transform_coefficients_to_unnormalized_domain(errors, t.min() - c_ra, t.max() - c_ra,
-                                                                   t.min() - c_dec, t.max() - c_dec, self.use_parallax)
         return solution if not return_all else (solution, errors, chisq)
 
     def _chi2_vector(self, ra_vs_epoch, dec_vs_epoch):
@@ -197,12 +179,7 @@ class AstrometricFitter(object):
         return np.sum(astrometric_chi_squared_matrices, axis=0), astrometric_chi_squared_matrices
 
     def _init_epochs(self):
-        if not self.normed:
-            # comment so that unit test registers.
-            return np.array(self.epoch_times) - self.central_epoch_ra, np.array(self.epoch_times) - self.central_epoch_dec
-        if self.normed:
-            normed_epochs = normalize(self.epoch_times, [np.max(self.epoch_times), np.min(self.epoch_times)])
-            return 1.*normed_epochs, 1.*normed_epochs
+        return np.array(self.epoch_times) - self.central_epoch_ra, np.array(self.epoch_times) - self.central_epoch_dec
 
 
 class AstrometricFastFitter(AstrometricFitter):
@@ -220,9 +197,6 @@ class AstrometricFastFitter(AstrometricFitter):
         """
         return fast_fit_line(self._chi2_matrix, self.astrometric_solution_vector_components['ra'],
                              self.astrometric_solution_vector_components['dec'], ra_vs_epoch, dec_vs_epoch)
-
-    def _on_normed(self):
-        raise NotImplementedError('AstrometricFastFitter cannot implement the normed=True fit feature')
 
 
 #@jit(nopython=True)

@@ -9,7 +9,7 @@ import os
 
 
 def parse(datacsv, data, data_choice='MERGED', perturb=True):
-    if (data_choice is not 'NDAC') and (data_choice is not 'FAST') and (data_choice is not 'MERGED'):
+    if (data_choice != 'NDAC') and (data_choice != 'FAST') and (data_choice != 'MERGED'):
         raise ValueError('data choice has to be either NDAC or FAST or MERGED.')
     datacsv = data._fix_unnamed_column(datacsv)
     if perturb:

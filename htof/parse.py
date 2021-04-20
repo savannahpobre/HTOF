@@ -35,10 +35,10 @@ class DataParser(object):
     """
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
                  along_scan_errs=None):
-        self.scan_angle = pd.Series(scan_angle)
-        self._epoch = pd.DataFrame(epoch)
-        self.residuals = pd.Series(residuals)
-        self.along_scan_errs = pd.Series(along_scan_errs)
+        self.scan_angle = pd.Series(scan_angle, dtype=np.float64)
+        self._epoch = pd.DataFrame(epoch, dtype=np.float64)
+        self.residuals = pd.Series(residuals, dtype=np.float64)
+        self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
         self._rejected_epochs = []
 
@@ -164,7 +164,7 @@ class GaiaData(DataParser):
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                skiprows=0, header='infer', sep='\s*,\s*')
+                                                skiprows=0, header='infer', sep=r'\s*,\s*')
         data = self.trim_data(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'],
                               data, self.min_epoch, self.max_epoch)
         data = self.reject_dead_times(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'], data)
@@ -251,11 +251,11 @@ class HipparcosOriginalData(DecimalYearData):
         both consortia's data in the IAD, which would be unphysical and is just for debugging. 'FAST' would keep
         only the FAST consortia data, likewise only NDAC would be kept if you selected 'NDAC'.
         """
-        if (data_choice is not 'NDAC') and (data_choice is not 'FAST') and (data_choice is not 'MERGED')\
-                and (data_choice is not 'BOTH'):
+        if (data_choice != 'NDAC') and (data_choice != 'FAST') and (data_choice != 'MERGED')\
+                and (data_choice != 'BOTH'):
             raise ValueError('data choice has to be either NDAC or FAST or MERGED or BOTH.')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                skiprows=10, header='infer', sep='\s*\|\s*')
+                                                skiprows=10, header='infer', sep=r'\s*\|\s*')
         data = self._fix_unnamed_column(data)
         data = self._select_data(data, data_choice)
         # compute scan angles and observations epochs according to van Leeuwen & Evans 1998
@@ -270,9 +270,9 @@ class HipparcosOriginalData(DecimalYearData):
     @staticmethod
     def _select_data(data, data_choice):
         # restrict intermediate data to either NDAC, FAST, or merge the NDAC and FAST results.
-        if data_choice is 'MERGED':
+        if data_choice == 'MERGED':
             data = merge_consortia(data)
-        elif data_choice is not 'BOTH':
+        elif data_choice != 'BOTH':
             data = data[data['IA2'].str.upper() == {'NDAC': 'N', 'FAST': 'F'}[data_choice]]
         return data
 
@@ -309,9 +309,9 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         Michalik and Floor van Leeuwen, April 2019).
         """
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                  skiprows=0, header=None, sep='\s+').iloc[0]
+                                                  skiprows=0, header=None, sep=r'\s+').iloc[0]
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                skiprows=header_rows, header=None, sep='\s+')
+                                                skiprows=header_rows, header=None, sep=r'\s+')
         self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(psi), data[4] = cos(psi)
         self._epoch = data[1] + 1991.25
         self.residuals = data[5]  # unit milli-arcseconds (mas)
@@ -416,14 +416,17 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
             combinations = set(itertools.combinations(possible_rejects, n_reject))
             idx = np.ones((len(combinations), len(data)), dtype=bool)
             idx[[(i,) for i in range(len(combinations))], list(combinations)] = False
-            chisquareds = np.nansum((data.residuals.values * idx / (data.along_scan_errs.values * idx))**2, axis=1)
+            numerator = (data.along_scan_errs.values * idx)
+            numerator[np.isclose(numerator, 0)] = np.inf
+            chisquareds = np.nansum((data.residuals.values * idx / numerator)**2, axis=1)
             f2_trials = compute_f2(n_transits - n_reject - nparam, chisquareds)
             best_trial = np.nanargmin(np.abs(f2_trials - catalog_f2))
             f2_per_possibility.append(f2_trials[best_trial])
             reject_idx_per_possibility.append(list(list(combinations)[best_trial]))
 
         # see which reject combinations give an f2 value that is close to the catalog value (with wiggle room)
-        reject_idx_viable = np.asarray(reject_idx_per_possibility)[np.isclose(catalog_f2, f2_per_possibility, atol=3 * atol_f2)]
+        viable = np.isclose(catalog_f2, f2_per_possibility, atol=3 * atol_f2)  # fix to ragged array call
+        reject_idx_viable = [reject_idx_per_possibility[i] for i in range(len(viable)) if viable[i]]
         if len(reject_idx_viable) == 0:
             print('Could not find a set of epochs to reject that yielded an f2 value within {0} of the catalog value '
                   'for f2. Will proceed without rejecting ANY observations'.format(atol_f2))
@@ -460,7 +463,6 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
                   'rejected observations numbered {2} are not the correct '
                   'rejections to make.'.format(catalog_f2, round(f2, 2), reject_idx))
     return reject_idx
-
 
 def get_nparam(nparam_header_val):
     # strip the solution type (5, 7, or 9) from the solution type, which is a number 10xd+s consisting of

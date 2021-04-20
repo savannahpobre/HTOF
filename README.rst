@@ -7,8 +7,8 @@ Hipparcos satellites, and reproducing five, seven, and nine (or higher) paramete
 .. image:: https://coveralls.io/repos/github/gmbrandt/HTOF/badge.svg?branch=master
     :target: https://coveralls.io/github/gmbrandt/HTOF?branch=master
 
-.. image:: https://travis-ci.org/gmbrandt/HTOF.svg?branch=master
-    :target: https://travis-ci.org/gmbrandt/HTOF
+.. image:: https://travis-ci.com/gmbrandt/HTOF.svg?branch=master
+    :target: https://travis-ci.com/gmbrandt/HTOF
 
 Parallax is handled by the :code:`sky_path` module which was written by Anthony Brown
 as a part of his astrometric-sky-path package: https://github.com/agabrown/astrometric-sky-path/
