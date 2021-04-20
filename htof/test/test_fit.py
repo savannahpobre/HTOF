@@ -11,6 +11,7 @@ from htof.sky_path import parallactic_motion
 
 np.random.seed(seed=1234111)
 
+
 class TestAstrometricFitter:
     def test_init_epochs(self):
         fitter = AstrometricFitter(astrometric_solution_vector_components=[], central_epoch_dec=1.5, central_epoch_ra=1,

@@ -1,4 +1,4 @@
-0.3.4 (2021-04-19)
+0.3.5 (2021-04-19)
 ------------------
 - Fixed improper syntax calls to panda etc. so that warnings are silence in python 3.8 and beyond.
 - We have a deprecated call that cannot be fixed, and appears to be
