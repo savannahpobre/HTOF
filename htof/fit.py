@@ -77,16 +77,16 @@ class AstrometricFitter(object):
         :return: float. The reference epoch which makes the positional and proper motion covariance zero
         in the coordinate specified (either ra or dec).
         """
-        if coordinate is not 'ra' and coordinate is not 'dec':
+        if coordinate != 'ra' and coordinate != 'dec':
             raise ValueError('coordinate kwarg must be either ra or dec')
         # get the row (i) and column (j) that we are going to try and minimize in the covariance matrix
         row_coord, col_coord = {}, {}
-        if coordinate is 'ra':
+        if coordinate =='ra':
             row_coord['pm_pos_covariance'] = 1
             col_coord['pm_pos_covariance'] = 3
             row_coord['pm_variance'] = 3
             col_coord['pm_variance'] = 3
-        if coordinate is 'dec':
+        if coordinate == 'dec':
             row_coord['pm_pos_covariance'] = 2
             col_coord['pm_pos_covariance'] = 4
             row_coord['pm_variance'] = 4
