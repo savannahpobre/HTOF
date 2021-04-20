@@ -207,7 +207,7 @@ def test_optimal_central_epochs_forHip1_hip27321():
     # generate fitter and parse intermediate data
     astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
-                       central_ra=cntr_ra, central_dec=cntr_dec)
+                       central_ra=cntr_ra, central_dec=cntr_dec, normed=False)
     central_epoch = astro.optimal_central_epochs()
     central_epoch_ra, central_epoch_dec = central_epoch['ra'], central_epoch['dec']
     #print(central_epoch_ra, central_epoch_dec)

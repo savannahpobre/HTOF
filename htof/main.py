@@ -26,9 +26,9 @@ class Astrometry(object):
                  use_parallax=False, central_ra=None, central_dec=None, **kwargs):
 
         if 'normed' in kwargs:
-            warnings.warn('normed keyword argument will be removed in the next minor version'
-                          'of htof. Please delete normed=False wherever it is used. Note that'
-                          'normed=True has no affect.', PendingDeprecationWarning)
+            warnings.warn('normed keyword argument is Depreciated and will be removed in the next minor version ' 
+                          'of htof. Please delete normed=False wherever it is used. Note that neither '
+                          'normed=True nor False have any affect as of 0.3.5.', DeprecationWarning)
         if data is None:
             DataParser = self.parsers[data_choice.lower()]
             data = DataParser()
