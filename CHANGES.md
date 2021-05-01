@@ -1,3 +1,9 @@
+0.4.0 (2021-04-30)
+------------------
+- Implemented a better data fix for Hip2 dvd data. This fixes most of the 8000 discrepant sources
+that have the Hip2 dvd file-write error.
+- Updated the flagged source list (hip2_dvd_flagged.txt).
+
 0.3.5 (2021-04-19)
 ------------------
 - Fixed improper syntax calls to panda etc. so that warnings are silence in python 3.8 and beyond.

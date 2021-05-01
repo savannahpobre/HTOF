@@ -117,21 +117,15 @@ class TestHipparcosRereductionDVDBook:
     def test_reject_obs(self):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
         data = HipparcosRereductionDVDBook()
+
+        data.parse(star_id='39', intermediate_data_directory=test_data_directory)
+        print(data.write('/home/gmbrandt/Downloads/fixed_39.csv'))
+        assert len(data) == 114 - 1 # one rejected observation
+        assert np.allclose(np.sort(data.rejected_epochs), [69])
+
         data.parse(star_id='27321', intermediate_data_directory=test_data_directory)
         assert len(data) == 111 - 0
         assert data.rejected_epochs == []
-
-        data.parse(star_id='84', intermediate_data_directory=test_data_directory)
-        assert len(data) == 96 - 1
-        assert np.allclose(np.sort(data.rejected_epochs), [69])
-
-        data.parse(star_id='70', intermediate_data_directory=test_data_directory)
-        assert len(data) == 112 - 5
-        assert np.allclose(np.sort(data.rejected_epochs), [36, 55, 59, 64, 105])
-
-        data.parse(star_id='40', intermediate_data_directory=test_data_directory)
-        assert len(data) == 134 - 2
-        assert np.allclose(np.sort(data.rejected_epochs), [6, 53])
 
         data.parse(star_id='072477', intermediate_data_directory=test_data_directory)
         assert len(data) == 64 - 0
