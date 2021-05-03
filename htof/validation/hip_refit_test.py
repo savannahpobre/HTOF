@@ -25,16 +25,15 @@ class Hip1Engine(Engine):
         self.use_parallax = use_parallax
         self.hip_dm_g = hip_dm_g
 
-    def __call__(self, fname):
-        # This pattern is horrible. It is supposed to make this versatile to call with either hip_ids
-        # or actual filenames. We should just default to calling with actual hip ids only.
-        if type(fname) is str:
-            hip_id = os.path.basename(fname).split('.txt')[0]
-        else:
-            hip_id = fname
+    def __call__(self, hip_id):
         result = refit_hip1_object(self.dirname, hip_id, self.hip_dm_g, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype)
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        # ideally this method shouldn't really be in the engine, but whatever for now.
+        return os.path.basename(fname).split('.txt')[0]
 
 
 class Hip2Engine(Engine):
@@ -45,15 +44,15 @@ class Hip2Engine(Engine):
         self.seven_p_annex = seven_p_annex
         self.nine_p_annex = nine_p_annex
 
-    def __call__(self, fname):
-        if type(fname) is str:
-            hip_id = os.path.basename(fname).split('.d')[0].split('HIP')[1]
-        else:
-            hip_id = fname
+    def __call__(self, hip_id):
         result = refit_hip2_object(self.dirname, hip_id, self.catalog, seven_p_annex=self.seven_p_annex,
                                    nine_p_annex=self.nine_p_annex, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype[-1])
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        return os.path.basename(fname).split('.d')[0].split('HIP')[1]
 
 
 class Hip21Engine(Engine):
@@ -61,14 +60,14 @@ class Hip21Engine(Engine):
         self.dirname = dirname
         self.use_parallax = use_parallax
 
-    def __call__(self, fname):
-        if type(fname) is str:
-            hip_id = os.path.basename(fname).split('.csv')[0].split('H')[1]
-        else:
-            hip_id = fname
+    def __call__(self, hip_id):
         result = refit_hip21_object(self.dirname, hip_id, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype[-1])
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        return os.path.basename(fname).split('.csv')[0].split('H')[1]
 
 
 if __name__ == "__main__":
@@ -128,17 +127,22 @@ if __name__ == "__main__":
         files = glob(os.path.join(args.iad_directory, '**/H*.csv'))
         engine = Hip21Engine
 
-    if args.debug:     # fit a small subset of sources if debugging.
-        files = files[:100]
-    if args.inlist is not None and not args.debug:
-        files = np.genfromtxt(args.inlist).flatten().astype(int)
-    print('will fit {0} total hip {1} objects'.format(len(files), str(args.hip_reduction)))
+    # convert file names to a list of hip_ids
+    hip_ids = [engine.convert_fname_to_hip_id(fname) for fname in files]
+
+    if args.inlist is not None:
+        # fit a specific set of hip_ids if a list is provided.
+        hip_ids = np.genfromtxt(args.inlist).flatten().astype(int)
+    if args.debug:
+        # fit only a small subset of the desired sources if debugging.
+        hip_ids = hip_ids[:100]
+    print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.
     try:
         pool = Pool(args.cores)
         engine = engine(args.iad_directory, not args.ignore_parallax, **kwargs)
-        data_outputs = pool.map(engine, files)
+        data_outputs = pool.map(engine, hip_ids)
         out = Table(data_outputs)
         out.sort('hip_id')
         out.write(output_file, overwrite=True)
