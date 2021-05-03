@@ -91,10 +91,10 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
     fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)
     # do the fit for seven/nine parameter fits if we have the 7th and 9th parameters.
     accRA_err, accDec_err, jerkRA_err, jerkDec_err = 0, 0, 0, 0
-    if seven_p_annex is not None and fit_degree >= 2:
+    if seven_p_annex is not None and fit_degree is not None and fit_degree >= 2:
         idx = np.searchsorted(seven_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         accRA_err, accDec_err = seven_p_annex[idx][['acc_ra_err', 'acc_dec_err']]
-    if nine_p_annex is not None and fit_degree == 3:
+    if nine_p_annex is not None and fit_degree is not None and fit_degree == 3:
         idx = np.searchsorted(nine_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         jerkRA_err, jerkDec_err = nine_p_annex[idx][['jerk_ra_err', 'jerk_dec_err']]
     # do the fit
