@@ -403,7 +403,7 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
     # Calculate how many observations were probably rejected
     n_reject = 0#max(floor((percent_rejected - 1) / 100 * n_transits), 0)
     max_n_reject = max(ceil(percent_rejected / 100 * n_transits), 1)
-    max_n_reject = min(max_n_reject, 2) # limit to 2 rejected epochs to limit combinatoric stress.
+    max_n_reject = min(max_n_reject, 1)  # limit to 1 rejected epoch to limit combinatoric stress.
     possible_rejects = np.arange(len(data))
     # Calculate f2 without rejecting any observations
     chisquared = np.sum((data.residuals.values/data.along_scan_errs.values)**2)
@@ -430,12 +430,14 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
         while n_reject < max_n_reject and not found_epoch_to_reject:
             # calculate f2 given sets of rejected observations of n_reject.
             n_reject += 1
-            combinations = list(set(itertools.combinations(possible_rejects, n_reject)))
-            #combinations = set(itertools.combinations(possible_rejects, n_reject))
-            #combinations = [(d,) for d in np.arange(len(data))[::-1]]
+            orbit_combinations = list(set(itertools.combinations(possible_rejects, n_reject)))
             # often the epoch to reject is the last n_reject epochs. so start with those:
-            combinations = [tuple(len(data) - 1 - i for i in range(n_reject))] + combinations
-            #import pdb; pdb.set_trace()
+            combinations = [tuple(len(data) - 1 - i for i in range(n_reject))] + orbit_combinations
+            # note that this can be sped up for high n_reject by doing:
+            # combinations = [tuple(len(data) - 1 - i for i in range(n_reject))]
+            # also we should be able to do the orbit reject calculation fairly easily in memory.
+            # for 100 choose 3 we have like 250,000 combinations of orbits -- we sghould be able to
+            # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
             for resid_to_reject in combinations:
                 if found_epoch_to_reject:
                     continue  # skip the calculation if we already found the answer.
@@ -452,7 +454,7 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
                         candidate_orbit_chisquared_partials = []
                         # if the f2 value matches the catalog, then we know that we rejected the right residual and
                         # al error pair. now we just need to find which actual orbit time to reject.
-                        for orbit_to_reject in combinations:
+                        for orbit_to_reject in orbit_combinations:
                             orbits_to_keep[list(orbit_to_reject)] = False
                             # now we want to try a variety of deleting orbits and sliding the other orbits
                             # upward to fill the vacancy.
