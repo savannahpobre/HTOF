@@ -114,22 +114,19 @@ class TestHipparcosRereductionDVDBook:
         assert np.isclose(data._epoch[84], 1991.952)
         assert np.isclose(np.sin(data.scan_angle[84]), -0.8083, rtol=.01)
 
-    def test_reject_obs(self):
+    @pytest.mark.parametrize("hip_id,nobs,rej_obs", [('39', 114, {'orbit/scan_angle/time': [75],
+                                                      'residual/along_scan_error': [113]}), ('27321', 111, {}),
+                                                     ('072477', 64, {})])
+    def test_reject_obs(self, hip_id, nobs, rej_obs):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
         data = HipparcosRereductionDVDBook()
 
-        data.parse(star_id='39', intermediate_data_directory=test_data_directory)
-        print(data.write('/home/gmbrandt/Downloads/fixed_39.csv'))
-        assert len(data) == 114 - 1 # one rejected observation
-        assert np.allclose(np.sort(data.rejected_epochs), [69])
-
-        data.parse(star_id='27321', intermediate_data_directory=test_data_directory)
-        assert len(data) == 111 - 0
-        assert data.rejected_epochs == []
-
-        data.parse(star_id='072477', intermediate_data_directory=test_data_directory)
-        assert len(data) == 64 - 0
-        assert data.rejected_epochs == []
+        data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)
+        assert len(data) == nobs - len(rej_obs.get('orbit/scan_angle/time', []))
+        # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70 through 75.
+        if len(rej_obs) > 0:
+            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
+            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
 
 
 class TestHipparcosRereductionJavaTool:

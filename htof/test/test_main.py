@@ -46,7 +46,7 @@ class TestHipReReductionCDFits:
     SEVENP = load_hip2_seven_p_annex('htof/test/data_for_tests/Hip2/SevenP_Cat.d')
 
     @pytest.mark.e2e
-    @pytest.mark.parametrize("hip_id", ['70', '78999', '27321'])
+    @pytest.mark.parametrize("hip_id", ['78999', '27321'])
     def test_Hip2_fit_5p_source(self, hip_id):
         diffs, error_diffs, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2',
                                                                          hip_id, catalog=self.CATALOG, use_parallax=True)

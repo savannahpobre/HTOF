@@ -40,7 +40,7 @@ class DataParser(object):
         self.residuals = pd.Series(residuals, dtype=np.float64)
         self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
-        self._rejected_epochs = []
+        self._rejected_epochs = {}
 
     @staticmethod
     def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
@@ -123,7 +123,7 @@ class DataParser(object):
 
     @rejected_epochs.setter
     def rejected_epochs(self, value):
-        residuals_to_reject, orbits_to_reject = value
+        residuals_to_reject, orbits_to_reject = value['residual/along_scan_error'], value['orbit/scan_angle/time']
         not_outlier = np.ones(len(self), dtype=bool)
         np.put(not_outlier, residuals_to_reject, False)
         self.residuals, self.along_scan_errs = self.residuals[not_outlier], self.along_scan_errs[not_outlier]
@@ -322,8 +322,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         n_transits, nparam, catalog_f2, percent_rejected = header[2], get_nparam(header[4]), header[6], header[7]
         if attempt_adhoc_rejection:
             # must reject before inflating errors, otherwise F2 is around zero.
-            residuals_to_reject, orbits_to_reject = find_epochs_to_reject(self, catalog_f2, n_transits, nparam, percent_rejected)
-            self.rejected_epochs = [residuals_to_reject, orbits_to_reject] # setting rejected_epochs also rejects the epochs (see the @setter)
+            self.rejected_epochs = find_epochs_to_reject(self, catalog_f2, n_transits, nparam, percent_rejected)
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
             # TODO check that oyu sohuld incorporate n_reject as well.
@@ -361,7 +360,8 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
                                                         error_inflate=False, header_rows=5, attempt_adhoc_rejection=False)
         epochs_to_reject = np.where(self.along_scan_errs < 0)[0]
-        self.rejected_epochs = epochs_to_reject  # setting rejected_epochs also rejects the epochs (see the @setter)
+        self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject), 'orbit/scan_angle/time': list(epochs_to_reject)}
+        # setting self.rejected_epochs also rejects the epochs (see the @setter)
 
 
 class GaiaDR2(GaiaData):
@@ -395,7 +395,10 @@ def match_filename(paths, star_id):
 
 
 def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, percent_rejected):
-    atol_f2 = 0.3  # f2 must match to the catalog within this to be considered valid.
+    # TODO there are degeneracies in the best epochs to reject. E.g. for hip 39, as long as the last
+    #  residual is rejected, basically any of the 1426 orbits (Because they are all similar)
+    #  can be rejected and they result in a very similar chisquared.
+    max_atol_f2 = 0.1  # f2 must match to the catalog within this to be considered valid.
     chisquared_threshold = 0.1 # squareroot of the sum of the chisquared partials, above which something should be flagged
     # Calculate how many observations were probably rejected
     # limit to 1 rejected epochs to combinatoric stress.
@@ -409,12 +412,11 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
     sin_scan = np.sin(data.scan_angle.values)
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
-    chi2_vector = (2 * data.residuals.values / data.along_scan_errs.values ** 2 * np.array(
-        [sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
+    chi2_vector = (2 * data.residuals.values / data.along_scan_errs.values ** 2 * np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
     sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
     #
     # Check if f2 agrees with the catalog.
-    f2_matches_catalog = np.isclose(catalog_f2, f2, atol=atol_f2)
+    f2_matches_catalog = np.isclose(catalog_f2, f2, atol=max_atol_f2)
     # check if the chisquared partials are small
     stationary_point = sum_chisquared_partials < chisquared_threshold
     resid_reject_idx = []  # index of the residual and along_scan error pair to throw out
@@ -422,51 +424,59 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
     if not f2_matches_catalog or not stationary_point:
         # if f2 doesn't match and the solution is not a stationary point, then there is probably
         # something wrong with this source. So try to fix it.
-        residual_to_keep = np.arange(len(data))
+        residuals_to_keep = np.ones(len(data), dtype=bool)
+        orbits_to_keep = np.ones(len(data), dtype=bool)
         found_epoch_to_reject = False
         while n_reject < max_n_reject and not found_epoch_to_reject:
             # calculate f2 given sets of rejected observations of n_reject.
             n_reject += 1
-            combinations = set(itertools.combinations(possible_rejects, n_reject))
-            for atol in [atol_f2]:#np.logspace(-3, np.log10(atol_f2), 5):
+            if n_reject == 1:
+                # if only one rejected observations, always start with the last first.
+                # this will give a substantial speed up since the last residuals are almost always bad.
+                combinations = [(d,) for d in np.arange(len(data))[::-1]]
+            else:
+                combinations = set(itertools.combinations(possible_rejects, n_reject))
+            for resid_to_reject in combinations:
                 if found_epoch_to_reject:
                     continue  # skip the calculation if we already found the answer.
-                for resid_idx in combinations:
+                for atol in [0.01, max_atol_f2]: # try a stricter f2 atol first.
                     if found_epoch_to_reject:
                         continue  # skip the calculation if we already found the answer.
-                    residual_to_keep[list(resid_idx)] = False # need to reset this to true later
+                    residuals_to_keep[list(resid_to_reject)] = False # need to reset this to true later
                     # calculate the f2 value
-                    chisquareds = np.nansum((data.residuals.values[residual_to_keep] / data.along_scan_errs.values[residual_to_keep]) ** 2)
-                    f2 = compute_f2(n_transits - n_reject - nparam, chisquareds)
+                    chisquared = np.nansum((data.residuals.values[residuals_to_keep] / data.along_scan_errs.values[residuals_to_keep]) ** 2)
+                    # the f2 comparisons would be the easiest part to arrify.
+                    f2 = compute_f2(n_transits - n_reject - nparam, chisquared)
                     if np.isclose(catalog_f2, f2, atol=atol):
-                        print(resid_idx)
                         # if the f2 value matches the catalog, then we know that we rejected the right residual and
                         # al error pair. now we just need to find which actual orbit time to reject.
-                        # we are going to do this step with array operations instead of looping over things, this
-                        # will speed it up drastically.
-                        orbits_to_keep = np.ones((len(combinations), len(data)), dtype=bool)
-                        orbits_to_keep[[(i,) for i in range(len(combinations))], list(combinations)] = False
-                        chi2_vector = (2 * residual_to_keep * data.residuals.values / data.along_scan_errs.values ** 2 * np.array(
-                                        [sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
-                        chi2_per_orbit = np.sum(chi2_vector, axis=1) ** 2
-                        # this is broken. We need chi2_vector here to have shape 4 * 114 * N where 114 is the number
-                        # of orbits, and N is the number of different combinations of rejected orbits to keep. E.g.
-                        # for one reject possible, we have 4 * 114 * 114
-                        # probably need a new axis of ones or something
-                        sum_chisquared_partials = np.sqrt(np.sum(chi2_per_orbit * orbits_to_keep, axis=0))
-                        best_trial = np.nanargmin(sum_chisquared_partials)
-                        best_chisquared_partials = sum_chisquared_partials[best_trial]
-                        print(best_chisquared_partials)
-                        if best_chisquared_partials < 0.1:
-                            orbit_reject_idx = list(list(combinations)[best_trial])
-                            resid_reject_idx = resid_idx
-                            found_epoch_to_reject = True
+                        for orbit_to_reject in combinations:
+                            if found_epoch_to_reject:
+                                continue  # skip the calculation if we already found the answer.
+                            orbits_to_keep[list(orbit_to_reject)] = False
+                            # now we want to try a variety of deleting orbits and sliding the other orbits
+                            # upward to fill the vacancy.
+
+                            # this pops the orbits out and shifts all the orbits after upwards:
+                            orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T[orbits_to_keep].T
+                            # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
+                            # shifted orbits, and calculates the chi2 partials vector per orbit:
+                            residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
+                            chi2_vector = (2 * residual_factors * orbit_factors).T
+                            # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
+                            sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
+                            if sum_chisquared_partials < 0.1:
+                                orbit_reject_idx = orbit_to_reject
+                                resid_reject_idx = resid_to_reject
+                                found_epoch_to_reject = True
                                 # this is a good enough stationary point and also matches the f2 value (by construction)
                                 # that this combination is probably the right combination.
+                            # reset for the next loop:
+                            orbits_to_keep[list(orbit_to_reject)] = True
                     # reset for the next loop:
-                    residual_to_keep[list(resid_idx)] = True
-
-    return resid_reject_idx, orbit_reject_idx
+                    residuals_to_keep[list(resid_to_reject)] = True
+    return {'residual/along_scan_error': list(resid_reject_idx),
+            'orbit/scan_angle/time': list(orbit_reject_idx)}
 
 
 def get_nparam(nparam_header_val):
