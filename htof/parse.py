@@ -433,9 +433,8 @@ def find_epochs_to_reject(data: DataParser, catalog_f2, n_transits, nparam, perc
             combinations = list(set(itertools.combinations(possible_rejects, n_reject)))
             #combinations = set(itertools.combinations(possible_rejects, n_reject))
             #combinations = [(d,) for d in np.arange(len(data))[::-1]]
-            print(combinations)
             # often the epoch to reject is the last n_reject epochs. so start with those:
-            #combinations = [tuple(len(data) - 1 - i for i in range(n_reject))] + combinations
+            combinations = [tuple(len(data) - 1 - i for i in range(n_reject))] + combinations
             #import pdb; pdb.set_trace()
             for resid_to_reject in combinations:
                 if found_epoch_to_reject:
