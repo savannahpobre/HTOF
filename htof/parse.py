@@ -280,7 +280,8 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
 
-    def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1, **kwargs):
+    def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1,
+              attempt_adhoc_rejection=True, **kwargs):
         """
         :param: star_id:
         :param: intermediate_data_directory:
@@ -308,18 +309,11 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
-        if percent_rejected > 0 and type(self) is HipparcosRereductionDVDBook:
-            # TODO there are 10,000 sources with more than one rejected epoch, and only 700 of them have
-            # this write out bug. We could try and reverse engineer the rejected epochs (like we did before)
-            # for any sources that do not have the write out bug.
-            # we should probably do this, since I imagnie we will have ~15000 or so sources that we cannot refit
-            # from the DVD if we do not do anything.
-            warnings.warn(f"You are parsing a DVD source that has {percent_rejected} percent "
-                          f"rejected observations. Note that the write out bug, plus the issue that "
-                          f"rejected observations are not indicated, makes it difficult to algorithmically reject "
-                          f"the correct epochs and assign residuals correctly. The IAD for this source will "
-                          f"not reflect the best-fit solution. Please use the java tool data instead, or correct "
-                          f"the data file yourself.", UserWarning)
+        if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
+            warnings.warn(f"Print htof is attempting to find the epochs for this DVD IAD that need to be rejected."
+                          f" However if this is a source with the write out bug, then this will fail. Preferably"
+                          f" switch to using the Java Tool data.", UserWarning)
+            self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, catalog_f2)
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
             self.along_scan_errs *= self.error_inflation_factor(n_transits, nparam, catalog_f2)
@@ -388,7 +382,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         if attempt_adhoc_rejection and 3 >= n_additional_reject > 0:
             self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
         if attempt_adhoc_rejection and n_additional_reject > 3:
-            self.additional_rejected_epochs = find_epochs_to_reject_java_probabilistic(self, n_additional_reject)
+            warnings.warn("more than 3 bugged epochs, cannot automatically fix this source. ", UserWarning)
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn("attempt_adhoc_rejection = False and this is a bugged source. "
                           "You are foregoing the write out bug "
@@ -433,6 +427,66 @@ def digits_only(x: str):
 
 def match_filename(paths, star_id):
     return [f for f in paths if digits_only(os.path.basename(f).split('.')[0]).zfill(6) == star_id.zfill(6)]
+
+
+def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, nparam, catalog_f2):
+    # just looks for combinations of orbits within the dvd IAD that yield a stationary point of chisquared.
+    # Note that this does not work for sources with the write out bug.
+    chi2_thresh = 1
+    possible_rejects = np.arange(len(data))
+    min_n_reject = max(floor((percent_rejected - 1) / 100 * n_transits), 0)
+    max_n_reject = max(ceil((percent_rejected + 1) / 100 * n_transits), 1)
+    max_n_reject = min(max_n_reject, 3)  # limit to three rejected sources so that combinatorics dont blow up.
+    # calculate the chisquared partials
+    sin_scan = np.sin(data.scan_angle.values)
+    cos_scan = np.cos(data.scan_angle.values)
+    dt = data.epoch - 1991.25
+    rows_to_keep = np.ones(len(data), dtype=bool)
+    orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])
+    residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)
+    chi2_vector = (2 * residual_factors * orbit_factors).T
+    sum_chisquared_partials_norejects = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
+    # we should be able to do the orbit reject calculation fairly easily in memory.
+    # for 100 choose 3 we have like 250,000 combinations of orbits -- we should be able to
+    # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
+    candidate_row_rejects_pern = [[]]
+    candidate_row_chisquared_partials_pern = [sum_chisquared_partials_norejects]
+    n_reject = max(min_n_reject, 1)
+    while n_reject < max_n_reject:
+        candidate_row_rejects = []
+        candidate_row_chisquared_partials = []
+        combinations = list(set(itertools.combinations(possible_rejects, int(n_reject))))
+        for rows_to_reject in combinations:
+            rows_to_keep[list(rows_to_reject)] = False
+            # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
+            sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[rows_to_keep], axis=0) ** 2))
+            candidate_row_rejects.append(rows_to_reject)
+            candidate_row_chisquared_partials.append(sum_chisquared_partials)
+            # reset for the next loop:
+            rows_to_keep[list(rows_to_reject)] = True
+        n_reject += 1
+        candidate_row_rejects_pern.append(np.array(candidate_row_rejects)[np.argmin(candidate_row_chisquared_partials)])
+        candidate_row_chisquared_partials_pern.append(np.min(candidate_row_chisquared_partials))
+    # see if any of the rejections are viable (i.e., check if this IAD is messed up in an unrepairable way)
+    if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
+        warnings.warn("Attempted to find which rows to reject, but the chisquared partials are larger than 0.5. "
+                      "This is likely a bugged source. Aborting rejection routine. ", UserWarning)
+        return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
+    # exclude any rejections that do not yield stationary points.
+    viable_rejections = np.where(np.array(candidate_row_chisquared_partials_pern) < chi2_thresh)[0]
+    candidate_row_rejects_pern = [candidate_row_rejects_pern[v] for v in viable_rejections]
+    candidate_row_chisquared_partials_pern = [candidate_row_chisquared_partials_pern[v] for v in viable_rejections]
+    # calculate f2 values for all the viable rejections
+    candidate_row_f2_vals_pern = []
+    data_minus_model_squared = ((data.residuals.values / data.along_scan_errs.values) ** 2)
+    for r in candidate_row_rejects_pern:
+        rows_to_keep[list(r)] = False
+        chisquared = np.sum(data_minus_model_squared[rows_to_keep])
+        candidate_row_f2_vals_pern.append(compute_f2(n_transits - nparam, chisquared))
+        rows_to_keep[list(r)] = True
+    # restrict viable choices to the one that best matches f2
+    reject_idx = candidate_row_rejects_pern[np.argmin(np.abs(np.array(candidate_row_f2_vals_pern) - catalog_f2))]
+    return {'residual/along_scan_error': list(reject_idx), 'orbit/scan_angle/time': list(reject_idx)}
 
 
 def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
@@ -480,67 +534,6 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
                       "likely more additional rejected epochs than htof can handle.", UserWarning)
 
-    return {'residual/along_scan_error': list(resid_reject_idx),
-            'orbit/scan_angle/time': list(orbit_reject_idx)}
-
-
-def find_epochs_to_reject_java_probabilistic(data: DataParser, n_additional_reject):
-    """
-    clever version of find_epochs_to_reject_java that assumes that the contribution from each orbit to
-    the chisquared partials is going to be small, and so we can build up the correct IAD iteratively.
-    This function is only for the ~100 or so sources that have more than 3 bugged epochs.
-    """
-    chisq_thresh = 2
-    unsuccessful_result = {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
-    known_rejected_residuals = (data.along_scan_errs.values < 0).astype(bool)
-    if np.count_nonzero(known_rejected_residuals) > 0:
-        # this method won't work if there are any known rejected residuals.
-        return unsuccessful_result
-    sin_scan = np.sin(data.scan_angle.values)
-    cos_scan = np.cos(data.scan_angle.values)
-    dt = data.epoch - 1991.25
-    resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
-    residuals_to_keep = np.ones(len(data), dtype=bool)
-    residuals_to_keep[resid_reject_idx] = False
-    orbits_to_keep = np.zeros(len(data), dtype=bool)
-    _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
-    _residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
-    trials = 1000
-    trial = 0
-    searching = True
-    while trial < trials and searching:
-        trial += 1
-        orbits_to_keep = np.zeros(len(data), dtype=bool)
-        i = 0
-        n_reject = 0
-        hit_max_rejects = False
-        while i < len(data) and not hit_max_rejects:
-            orbits_to_keep[i] = True  # try keeping this orbit.
-            orbit_factors = _orbit_factors[orbits_to_keep].T
-            # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
-            # shifted orbits, and calculates the chi2 partials vector per orbit:
-            #import pdb; pdb.set_trace()
-            residual_factors = _residual_factors[:np.count_nonzero(orbits_to_keep)]
-            chi2_vector = (2 * residual_factors * orbit_factors).T
-            # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
-            sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
-            # could do this in an MCMC fashion where we have a chance to accept the step even if it is bad,
-            # and we run e.g. 10,000 trials until we get both a run with a stationary point AND n_reject = n_additional_rejects
-            if sum_chisquared_partials > chisq_thresh:
-                orbits_to_keep[i] = False
-                n_reject += 1
-            if n_reject == n_additional_reject:
-                hit_max_rejects = True
-                orbits_to_keep[i+1:] = True
-            i += 1
-        ### delete this abort clause when we actually do the mcmc thing
-        if n_reject != n_additional_reject:
-            searching = False
-        ####
-        if n_reject == n_additional_reject and sum_chisquared_partials < chisq_thresh:
-            # if we rejected the exact number we expect and are a stationary point, stop the search.
-            searching = False
-    orbit_reject_idx = np.where(orbits_to_keep == False)[0]
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
 
