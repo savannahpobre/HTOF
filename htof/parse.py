@@ -385,7 +385,6 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                                            attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = n_transits - n_expected_transits
-        print(n_additional_reject)
         if attempt_adhoc_rejection and 3>= n_additional_reject > 0:
             self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
         if attempt_adhoc_rejection and n_additional_reject > 3:
