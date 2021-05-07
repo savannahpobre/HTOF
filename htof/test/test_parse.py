@@ -137,27 +137,39 @@ class TestHipparcosRereductionJavaTool:
         # outliers are marked with negative AL errors. Assert outliers are gone.
         assert np.all(data.along_scan_errs > 0)
 
-    @pytest.mark.parametrize("hip_id,nobs,rej_obs", [('39', 114, {'orbit/scan_angle/time': [72],
-                                                                  'residual/along_scan_error': [113]}),
-                                                     ('651', 114, {'orbit/scan_angle/time': [72],
-                                                              'residual/along_scan_error': [113]}),
-                                                     ('94046', 114, {'orbit/scan_angle/time': [2],
-                                                                  'residual/along_scan_error': [2]}),
-                                                     ('27321', 111, {}),
-                                                     ('072477', 64, {})])
-    def test_reject_obs(self, hip_id, nobs, rej_obs):
+    @pytest.mark.filterwarnings("ignore:attempt_adhoc_rejection")
+    @pytest.mark.parametrize("hip_id,rej_obs", [('39', {'orbit/scan_angle/time': [75],
+                                                        'residual/along_scan_error': [113]}),
+                                                ('651', {'orbit/scan_angle/time': [112],
+                                                         'residual/along_scan_error': [164]}),
+                                                ('94046', {'orbit/scan_angle/time': [63, 65],
+                                                           'residual/along_scan_error': [77, 76]}),
+                                                ('44050', {'orbit/scan_angle/time': [9, 10, 44],
+                                                           'residual/along_scan_error': [73, 72, 71]}),
+                                                ('27321', {}),
+                                                ('072477', {})])
+    def test_reject_obs(self, hip_id, rej_obs):
         # hip 651 is a great test source because it has 3 rejected observations (negative AL errors)
         # and it has an uncatalogued rejection that we need to fix.
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
         data = HipparcosRereductionJavaTool()
-
+        # get info on the IAD without doing any rejection:
+        data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory,
+                   attempt_adhoc_rejection=False, reject_known=False)
+        nobs_initial = len(data)
+        num_known_rejects = np.count_nonzero(data.along_scan_errs.values < 0)
+        # now run the rejection routine and see how it compares to what we expect:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)
-        assert len(data) == nobs - len(rej_obs.get('orbit/scan_angle/time', []))
-        # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70 through 75.
+        nobs_after_rejection = len(data)
+        num_rejects_writeout_bug = len(rej_obs.get('orbit/scan_angle/time', []))
+        assert nobs_after_rejection == nobs_initial - num_rejects_writeout_bug - num_known_rejects
+        # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70, 71, 72, 73, 74, 75.
+        sum_chi2_partials = calculate_chisq_partials(data)
+        print(sum_chi2_partials)
+        assert sum_chi2_partials < 0.1  # assert that the IAD reflect a solution that is a stationary point
         if len(rej_obs) > 0:
-            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
-            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
-
+            assert np.allclose(data.additional_rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
+            assert np.allclose(data.additional_rejected_epochs['residual/along_scan_error'], rej_obs['residual/along_scan_error'])
 
 
 class TestDataParser:
@@ -416,3 +428,17 @@ def test_get_nparam():
     assert 5 == get_nparam('23115')
     assert 5 == get_nparam('95')
     assert 7 == get_nparam('97')
+
+
+def calculate_chisq_partials(data: DataParser):
+    sin_scan = np.sin(data.scan_angle.values)
+    cos_scan = np.cos(data.scan_angle.values)
+    dt = data.epoch - 1991.25
+    orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])
+    # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
+    # shifted orbits, and calculates the chi2 partials vector per orbit:
+    residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)
+    chi2_vector = (2 * residual_factors * orbit_factors).T
+    # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
+    sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector,axis=0) ** 2))
+    return sum_chisquared_partials

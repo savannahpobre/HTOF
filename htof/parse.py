@@ -41,7 +41,6 @@ class DataParser(object):
         self.residuals = pd.Series(residuals, dtype=np.float64)
         self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
-        self._rejected_epochs = {}
 
     @staticmethod
     def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
@@ -117,21 +116,6 @@ class DataParser(object):
 
         t = QTable(cols, names=['scan_angle', 'julian_day_epoch', 'residuals', 'along_scan_errs', 'icov'])
         return t
-
-    @property
-    def rejected_epochs(self):
-        return self._rejected_epochs
-
-    @rejected_epochs.setter
-    def rejected_epochs(self, value):
-        residuals_to_reject, orbits_to_reject = value['residual/along_scan_error'], value['orbit/scan_angle/time']
-        not_outlier = np.ones(len(self), dtype=bool)
-        np.put(not_outlier, residuals_to_reject, False)
-        self.residuals, self.along_scan_errs = self.residuals[not_outlier], self.along_scan_errs[not_outlier]
-        not_outlier = np.ones(len(self), dtype=bool)
-        np.put(not_outlier, orbits_to_reject, False)
-        self._epoch, self.scan_angle = self._epoch[not_outlier], self.scan_angle[not_outlier]
-        self._rejected_epochs = value
 
     def __add__(self, other):
         all_scan_angles = pd.concat([self.scan_angle, other.scan_angle])
@@ -292,6 +276,9 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         super(HipparcosRereductionDVDBook, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                           epoch=epoch, residuals=residuals,
                                                           inverse_covariance_matrix=inverse_covariance_matrix)
+        self._additional_rejected_epochs = {}  # epochs that need to be rejected due to the write out bug.
+        self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
+        # those that have negative AL errors in the java tool
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1, **kwargs):
         """
@@ -321,7 +308,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
-        if percent_rejected > 0:
+        if percent_rejected > 0 and type(self) is HipparcosRereductionDVDBook:
             # TODO there are 10,000 sources with more than one rejected epoch, and only 700 of them have
             # this write out bug. We could try and reverse engineer the rejected epochs (like we did before)
             # for any sources that do not have the write out bug.
@@ -357,6 +344,32 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         u = np.sqrt(Q/nu)  # equation B.4. This is the chi squared statistic of the fit.
         return u
 
+    def _reject_epochs(self, attr_to_set, value):
+        residuals_to_reject, orbits_to_reject = value['residual/along_scan_error'], value['orbit/scan_angle/time']
+        not_outlier = np.ones(len(self), dtype=bool)
+        np.put(not_outlier, residuals_to_reject, False)
+        self.residuals, self.along_scan_errs = self.residuals[not_outlier], self.along_scan_errs[not_outlier]
+        not_outlier = np.ones(len(self), dtype=bool)
+        np.put(not_outlier, orbits_to_reject, False)
+        self._epoch, self.scan_angle = self._epoch[not_outlier], self.scan_angle[not_outlier]
+        setattr(self, attr_to_set, value)
+
+    @property
+    def additional_rejected_epochs(self):
+        return self._additional_rejected_epochs
+
+    @additional_rejected_epochs.setter
+    def additional_rejected_epochs(self, value):
+        self._reject_epochs('_additional_rejected_epochs', value)
+
+    @property
+    def rejected_epochs(self):
+        return self._rejected_epochs
+
+    @rejected_epochs.setter
+    def rejected_epochs(self, value):
+        self._reject_epochs('_rejected_epochs', value)
+
 
 class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
@@ -365,26 +378,28 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                          epoch=epoch, residuals=residuals,
                                                          inverse_covariance_matrix=inverse_covariance_matrix)
 
-    def parse(self, star_id, intermediate_data_directory, attempt_adhoc_rejection=True, **kwargs):
+    def parse(self, star_id, intermediate_data_directory, attempt_adhoc_rejection=True, reject_known=True, **kwargs):
         # TODO set error error_inflate=True when the F2 value is available in the headers of 2.1 data.
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
-                                                                    error_inflate=False, header_rows=5,
-                                                                    attempt_adhoc_rejection=False)
+                                                                           error_inflate=False, header_rows=5,
+                                                                           attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = n_transits - n_expected_transits
         print(n_additional_reject)
         if attempt_adhoc_rejection and n_additional_reject > 0:
-            epochs_to_reject = find_epochs_to_reject_java(self, n_additional_reject)
+            self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn("attempt_adhoc_rejection = False and this is a bugged source. "
                           "You are foregoing the write out bug "
                           "correction for this Java tool source. The IAD will not correspond exactly "
                           "to the best fit solution. ", UserWarning)
-        if n_additional_reject == 0:
-            epochs_to_reject = np.where(self.along_scan_errs < 0)[0]
-            epochs_to_reject = {'residual/along_scan_error': list(epochs_to_reject),
-                                'orbit/scan_angle/time': list(epochs_to_reject)}
-        self.rejected_epochs = epochs_to_reject
+        epochs_to_reject = np.where(self.along_scan_errs < 0)[0] # note that we have to reject
+        # the epochs with negative along scan errors (the formally known epochs that need to be rejected)
+        # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
+        # is important because the write out bug correction shuffles the orbits.
+        if len(epochs_to_reject) > 0 and reject_known:
+            self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
+                                    'orbit/scan_angle/time': list(epochs_to_reject)}
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
 
@@ -429,8 +444,6 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
-    orbit_reject_idx = []  # index of the orbit/scan_angle/time set to throw out.
-
     # need to iterate over popping orbit combinations
     # then after popping, set the contributions to 0 of those rows with negative AL errors
     # then calculate chisquared, saving that chisquared value.
@@ -442,7 +455,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     #
     residuals_to_keep = np.ones(len(data), dtype=bool)
     residuals_to_keep[resid_reject_idx] = False
-    known_rejected_residuals = (data.residuals.values < 0).astype(bool)
+    known_rejected_residuals = (data.along_scan_errs.values < 0).astype(bool)
     # we should be able to do the orbit reject calculation fairly easily in memory.
     # for 100 choose 3 we have like 250,000 combinations of orbits -- we sghould be able to
     # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
@@ -460,21 +473,21 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
         chi2_vector = (2 * residual_factors * orbit_factors).T
         # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
-        sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector * (known_rejected_residuals[residuals_to_keep]).reshape(-1, 1),
-                                                        axis=0) ** 2))
+        mask_rejected_resid = (~known_rejected_residuals[residuals_to_keep])
+        sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
         candidate_orbit_rejects.append(orbit_to_reject)
         candidate_orbit_chisquared_partials.append(sum_chisquared_partials)
             # this is a good enough stationary point and also matches the f2 value (by construction)
             # that this combination is probably the right combination.
         # reset for the next loop:
         orbits_to_keep[list(orbit_to_reject)] = True
-
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
-    if np.min(candidate_orbit_chisquared_partials) > 5:
-        warnings.warn("Attempted to fix the write out bug, but this is one of the few sources that "
-                      "htof cannot fix. ", UserWarning)
+    if np.min(candidate_orbit_chisquared_partials) > 0.5:
+        warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
+                      "likely more additional rejected epochs than htof can handle.", UserWarning)
 
-    return {'residual/along_scan_error': list(resid_reject_idx), 'orbit/scan_angle/time': list(orbit_reject_idx)}
+    return {'residual/along_scan_error': list(resid_reject_idx),
+            'orbit/scan_angle/time': list(orbit_reject_idx)}
 
 
 def get_nparam(nparam_header_val):
