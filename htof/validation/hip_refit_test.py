@@ -136,6 +136,7 @@ if __name__ == "__main__":
     if args.debug:
         # fit only a small subset of the desired sources if debugging.
         hip_ids = hip_ids[:100]
+    #hip_ids = [117297, 8000]
     print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.
