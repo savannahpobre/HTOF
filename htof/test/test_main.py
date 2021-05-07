@@ -40,7 +40,7 @@ def test_parse_and_fit_to_line():
         assert np.isclose(mu_dec, 1)
 
 
-class TestHipReReductionCDFits:
+class TestHipReReductionDVDFits:
     CATALOG = load_hip2_catalog('htof/test/data_for_tests/Hip2/truncated_hip2dvd_Main_Cat.d')
     NINEP = load_hip2_nine_p_annex('htof/test/data_for_tests/Hip2/NineP_Cat.d')
     SEVENP = load_hip2_seven_p_annex('htof/test/data_for_tests/Hip2/SevenP_Cat.d')

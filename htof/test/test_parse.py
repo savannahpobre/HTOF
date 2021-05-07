@@ -114,20 +114,6 @@ class TestHipparcosRereductionDVDBook:
         assert np.isclose(data._epoch[84], 1991.952)
         assert np.isclose(np.sin(data.scan_angle[84]), -0.8083, rtol=.01)
 
-    @pytest.mark.parametrize("hip_id,nobs,rej_obs", [('39', 114, {'orbit/scan_angle/time': [72],
-                                                      'residual/along_scan_error': [113]}), ('27321', 111, {}),
-                                                     ('072477', 64, {})])
-    def test_reject_obs(self, hip_id, nobs, rej_obs):
-        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
-        data = HipparcosRereductionDVDBook()
-
-        data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)
-        assert len(data) == nobs - len(rej_obs.get('orbit/scan_angle/time', []))
-        # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70 through 75.
-        if len(rej_obs) > 0:
-            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
-            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
-
 
 class TestHipparcosRereductionJavaTool:
     test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
@@ -143,12 +129,35 @@ class TestHipparcosRereductionJavaTool:
         assert np.isclose(data._epoch[84], 1991.9523)
         assert np.isclose(np.sin(data.scan_angle[84]), -0.8083, rtol=.01)
 
-    def test_outlier_reject(self):
+    def test_outlier_reject_nowriteoutbug(self):
+        # test that outliers are rejected when it is a source without the write out bug.
         data = HipparcosRereductionJavaTool()
         data.parse(star_id='27100', intermediate_data_directory=self.test_data_directory)
         assert len(data) == 147 - 2  # num entries - num outliers
         # outliers are marked with negative AL errors. Assert outliers are gone.
         assert np.all(data.along_scan_errs > 0)
+
+    @pytest.mark.parametrize("hip_id,nobs,rej_obs", [('39', 114, {'orbit/scan_angle/time': [72],
+                                                                  'residual/along_scan_error': [113]}),
+                                                     ('651', 114, {'orbit/scan_angle/time': [72],
+                                                              'residual/along_scan_error': [113]}),
+                                                     ('94046', 114, {'orbit/scan_angle/time': [2],
+                                                                  'residual/along_scan_error': [2]}),
+                                                     ('27321', 111, {}),
+                                                     ('072477', 64, {})])
+    def test_reject_obs(self, hip_id, nobs, rej_obs):
+        # hip 651 is a great test source because it has 3 rejected observations (negative AL errors)
+        # and it has an uncatalogued rejection that we need to fix.
+        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
+        data = HipparcosRereductionJavaTool()
+
+        data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)
+        assert len(data) == nobs - len(rej_obs.get('orbit/scan_angle/time', []))
+        # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70 through 75.
+        if len(rej_obs) > 0:
+            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
+            assert np.isclose(data.rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
+
 
 
 class TestDataParser:
