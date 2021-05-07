@@ -385,11 +385,10 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                                            attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = n_transits - n_expected_transits
-        if attempt_adhoc_rejection and 3>= n_additional_reject > 0:
+        if attempt_adhoc_rejection and 3 >= n_additional_reject > 0:
             self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
         if attempt_adhoc_rejection and n_additional_reject > 3:
-            None
-            #self.additional_rejected_epochs = find_epochs_to_reject_java_probabilistic(self, n_additional_reject)
+            self.additional_rejected_epochs = find_epochs_to_reject_java_probabilistic(self, n_additional_reject)
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn("attempt_adhoc_rejection = False and this is a bugged source. "
                           "You are foregoing the write out bug "
@@ -447,17 +446,15 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     dt = data.epoch - 1991.25
     resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
     # need to iterate over popping orbit combinations
-    # then after popping, set the contributions to 0 of those rows with negative AL errors
-    # then calculate chisquared, saving that chisquared value.
-    # take the best chisquared value
-    # change rejected epochs to additionl rejected epochs
-    # in the @setter for rejected epochs, delete the ones with negative AL errors. or something.
     orbits_to_keep = np.ones(len(data), dtype=bool)
     orbit_combinations = list(set(itertools.combinations(possible_rejects, int(n_additional_reject))))
     #
     residuals_to_keep = np.ones(len(data), dtype=bool)
     residuals_to_keep[resid_reject_idx] = False
-    known_rejected_residuals = (data.along_scan_errs.values < 0).astype(bool)
+
+    residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
+    mask_rejected_resid = (data.along_scan_errs.values > 0).astype(bool)[residuals_to_keep]
+    _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
     # we should be able to do the orbit reject calculation fairly easily in memory.
     # for 100 choose 3 we have like 250,000 combinations of orbits -- we sghould be able to
     # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
@@ -467,20 +464,15 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = False
         # now we want to try a variety of deleting orbits and sliding the other orbits
         # upward to fill the vacancy.
-
-        # this pops the orbits out and shifts all the orbits after upwards:
-        orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T[orbits_to_keep].T
+        # this pops the orbits out and shifts all the orbits after:
+        orbit_factors = _orbit_factors[orbits_to_keep].T
         # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
         # shifted orbits, and calculates the chi2 partials vector per orbit:
-        residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
         chi2_vector = (2 * residual_factors * orbit_factors).T
         # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
-        mask_rejected_resid = (~known_rejected_residuals[residuals_to_keep])
         sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
         candidate_orbit_rejects.append(orbit_to_reject)
         candidate_orbit_chisquared_partials.append(sum_chisquared_partials)
-            # this is a good enough stationary point and also matches the f2 value (by construction)
-            # that this combination is probably the right combination.
         # reset for the next loop:
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
@@ -498,54 +490,57 @@ def find_epochs_to_reject_java_probabilistic(data: DataParser, n_additional_reje
     the chisquared partials is going to be small, and so we can build up the correct IAD iteratively.
     This function is only for the ~100 or so sources that have more than 3 bugged epochs.
     """
-    possible_rejects = np.arange(len(data))
-    # calculate the chisquared partials
+    chisq_thresh = 2
+    unsuccessful_result = {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
+    known_rejected_residuals = (data.along_scan_errs.values < 0).astype(bool)
+    if np.count_nonzero(known_rejected_residuals) > 0:
+        # this method won't work if there are any known rejected residuals.
+        return unsuccessful_result
     sin_scan = np.sin(data.scan_angle.values)
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
-    # need to iterate over popping orbit combinations
-    # then after popping, set the contributions to 0 of those rows with negative AL errors
-    # then calculate chisquared, saving that chisquared value.
-    # take the best chisquared value
-    # change rejected epochs to additionl rejected epochs
-    # in the @setter for rejected epochs, delete the ones with negative AL errors. or something.
-    orbits_to_keep = np.ones(len(data), dtype=bool)
-    orbit_combinations = list(set(itertools.combinations(possible_rejects, int(n_additional_reject))))
-    #
     residuals_to_keep = np.ones(len(data), dtype=bool)
     residuals_to_keep[resid_reject_idx] = False
-    known_rejected_residuals = (data.along_scan_errs.values < 0).astype(bool)
-    # we should be able to do the orbit reject calculation fairly easily in memory.
-    # for 100 choose 3 we have like 250,000 combinations of orbits -- we sghould be able to
-    # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
-    candidate_orbit_rejects = []
-    candidate_orbit_chisquared_partials = []
-    for orbit_to_reject in orbit_combinations:
-        orbits_to_keep[list(orbit_to_reject)] = False
-        # now we want to try a variety of deleting orbits and sliding the other orbits
-        # upward to fill the vacancy.
-
-        # this pops the orbits out and shifts all the orbits after upwards:
-        orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T[orbits_to_keep].T
-        # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
-        # shifted orbits, and calculates the chi2 partials vector per orbit:
-        residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
-        chi2_vector = (2 * residual_factors * orbit_factors).T
-        # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
-        mask_rejected_resid = (~known_rejected_residuals[residuals_to_keep])
-        sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
-        candidate_orbit_rejects.append(orbit_to_reject)
-        candidate_orbit_chisquared_partials.append(sum_chisquared_partials)
-            # this is a good enough stationary point and also matches the f2 value (by construction)
-            # that this combination is probably the right combination.
-        # reset for the next loop:
-        orbits_to_keep[list(orbit_to_reject)] = True
-    orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
-    if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-                      "likely more additional rejected epochs than htof can handle.", UserWarning)
-
+    orbits_to_keep = np.zeros(len(data), dtype=bool)
+    _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
+    _residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
+    trials = 1000
+    trial = 0
+    searching = True
+    while trial < trials and searching:
+        trial += 1
+        orbits_to_keep = np.zeros(len(data), dtype=bool)
+        i = 0
+        n_reject = 0
+        hit_max_rejects = False
+        while i < len(data) and not hit_max_rejects:
+            orbits_to_keep[i] = True  # try keeping this orbit.
+            orbit_factors = _orbit_factors[orbits_to_keep].T
+            # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
+            # shifted orbits, and calculates the chi2 partials vector per orbit:
+            #import pdb; pdb.set_trace()
+            residual_factors = _residual_factors[:np.count_nonzero(orbits_to_keep)]
+            chi2_vector = (2 * residual_factors * orbit_factors).T
+            # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
+            sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
+            # could do this in an MCMC fashion where we have a chance to accept the step even if it is bad,
+            # and we run e.g. 10,000 trials until we get both a run with a stationary point AND n_reject = n_additional_rejects
+            if sum_chisquared_partials > chisq_thresh:
+                orbits_to_keep[i] = False
+                n_reject += 1
+            if n_reject == n_additional_reject:
+                hit_max_rejects = True
+                orbits_to_keep[i+1:] = True
+            i += 1
+        ### delete this abort clause when we actually do the mcmc thing
+        if n_reject != n_additional_reject:
+            searching = False
+        ####
+        if n_reject == n_additional_reject and sum_chisquared_partials < chisq_thresh:
+            # if we rejected the exact number we expect and are a stationary point, stop the search.
+            searching = False
+    orbit_reject_idx = np.where(orbits_to_keep == False)[0]
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
 

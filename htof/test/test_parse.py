@@ -144,6 +144,8 @@ class TestHipparcosRereductionJavaTool:
                                                          'residual/along_scan_error': [164]}),
                                                 ('94046', {'orbit/scan_angle/time': [63, 65],
                                                            'residual/along_scan_error': [77, 76]}),
+                                                ('37515', {'orbit/scan_angle/time': [6]*6,
+                                                           'residual/along_scan_error': [6]*6}),
                                                 ('44050', {'orbit/scan_angle/time': [9, 10, 44],
                                                            'residual/along_scan_error': [73, 72, 71]}),
                                                 ('27321', {}),
