@@ -1,9 +1,11 @@
 0.4.0 (2021-04-30)
 ------------------
-- Implemented a better data fix for Hip2 dvd data. This fixes most of the 8000 discrepant sources
-that have the Hip2 dvd file-write error. Note that this is not perfect, there are some minor
+- Implemented a better data fix for Hip2 java data. This fixes most of the 6400 discrepant sources
+that have the Hip2 file-write error. Note that this is not perfect, there are some minor
   degeneracies between which epochs to reject. See the note in parse.find_epochs_to_reject()
-- Updated the flagged source list (hip2_dvd_flagged.txt).
+- Note that this write-out bug fix does not work on the dvd data (note, 
+  the dvd still has the same bug, it is just not easily correctable).
+- Updated the flagged source list (hip2_javatool_flagged.txt).
 
 0.3.5 (2021-04-19)
 ------------------
