@@ -146,11 +146,13 @@ class TestHipparcosRereductionJavaTool:
                                                            'residual/along_scan_error': [77, 76]}),
                                                 ('44050', {'orbit/scan_angle/time': [9, 10, 44],
                                                            'residual/along_scan_error': [73, 72, 71]}),
+                                                ('114114', {'orbit/scan_angle/time': [1, 17, 22, 56],
+                                                           'residual/along_scan_error': [79, 80, 81, 82]}),
                                                 ('27321', {}),
                                                 ('072477', {})])
     def test_reject_obs(self, hip_id, rej_obs):
         # hip 651 is a great test source because it has 3 rejected observations (negative AL errors)
-        # and it has an uncatalogued rejection that we need to fix.
+        # and it has an uncatalogued rejection that we need to fix (i.e., an extra, 4th, rejection).
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
         data = HipparcosRereductionJavaTool()
         # get info on the IAD without doing any rejection:
@@ -166,9 +168,12 @@ class TestHipparcosRereductionJavaTool:
         # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70, 71, 72, 73, 74, 75.
         sum_chi2_partials = calculate_chisq_partials(data)
         assert sum_chi2_partials < 0.1  # assert that the IAD reflect a solution that is a stationary point
+        print(sum_chi2_partials)
         if len(rej_obs) > 0:
-            assert np.allclose(data.additional_rejected_epochs['orbit/scan_angle/time'], rej_obs['orbit/scan_angle/time'])
-            assert np.allclose(data.additional_rejected_epochs['residual/along_scan_error'], rej_obs['residual/along_scan_error'])
+            assert np.allclose(np.sort(data.additional_rejected_epochs['orbit/scan_angle/time']),
+                               np.sort(rej_obs['orbit/scan_angle/time']))
+            assert np.allclose(np.sort(data.additional_rejected_epochs['residual/along_scan_error']),
+                               np.sort(rej_obs['residual/along_scan_error']))
 
 
 class TestDataParser:

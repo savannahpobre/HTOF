@@ -377,14 +377,21 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
                                                                            error_inflate=False, header_rows=5,
                                                                            attempt_adhoc_rejection=False)
-        self.orbit_number = raw_data[0]
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
-        if attempt_adhoc_rejection and 3 >= n_additional_reject > 0:
-            self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
-        if attempt_adhoc_rejection and n_additional_reject > 3:
-            warnings.warn(f"more than 3 bugged epochs for {star_id}, cannot "
-                          f"automatically fix this source. ", UserWarning)
+        max_n_auto_reject = 4
+        if attempt_adhoc_rejection:
+            if 3 >= n_additional_reject > 0:
+                # Note: you could use find_epochs_to_reject_java_large here and it would be faster for n_additional_reject=3
+                # and basically just as good. The only draw back is it will find slightly different rows (within the same
+                # orbit) to reject, compared to find_epochs_to_reject_java
+                self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
+            if max_n_auto_reject >= n_additional_reject > 3:
+                orbit_number = raw_data[0].values
+                self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
+            if n_additional_reject > max_n_auto_reject:
+                warnings.warn(f"more than {max_n_auto_reject} bugged epochs for {star_id}, cannot "
+                              f"automatically fix this source. ", UserWarning)
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
                           "You are foregoing the write out bug "
@@ -540,19 +547,19 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
             'orbit/scan_angle/time': list(orbit_reject_idx)}
 
 
-def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject):
+def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject, orbit_number):
     # this is for any java tool object where n_additional_reject is greater than 3.
     # we assume the scan angles and times of rows in the same orbit are similar, therefore we only have
     # to try all combinations of distributing n_additional_reject rejected epochs among N orbits
     # calculate the chisquared partials
-    orbit_prototypes, orbit_multiplicity = np.unique(data.orbit_number.values)
+    orbit_prototypes, orbit_index, orbit_multiplicity = np.unique(orbit_number, return_index=True, return_counts=True)
+    num_unique_orbits = len(orbit_prototypes)
     sin_scan = np.sin(data.scan_angle.values)
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
     # need to iterate over popping orbit combinations
-    orbits_to_keep = np.ones(len(data), dtype=bool)
-    #
+    orbits_to_keep = np.zeros(len(data), dtype=bool)
     residuals_to_keep = np.ones(len(data), dtype=bool)
     residuals_to_keep[resid_reject_idx] = False
 
@@ -564,8 +571,13 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject):
     # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
     candidate_orbit_rejects = []
     candidate_orbit_chisquared_partials = []
-    for orbit_to_reject in orbit_combinations:
-        orbits_to_keep[list(orbit_to_reject)] = False
+    for rejects_from_each_orbit in partitions(n_additional_reject, num_unique_orbits):
+        if np.any(rejects_from_each_orbit > orbit_multiplicity):
+            # ignore any trials of rejects that put e.g. 10 rejects into an orbit with only 4 observations.
+            continue
+        end_index = orbit_index + orbit_multiplicity - np.array(rejects_from_each_orbit)
+        for s, e in zip(orbit_index, end_index):
+            orbits_to_keep[s:e] = True
         # now we want to try a variety of deleting orbits and sliding the other orbits
         # upward to fill the vacancy.
         # this pops the orbits out and shifts all the orbits after:
@@ -575,11 +587,16 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject):
         chi2_vector = (2 * residual_factors * orbit_factors).T
         # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
         sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
-        candidate_orbit_rejects.append(orbit_to_reject)
+        candidate_orbit_rejects.append(rejects_from_each_orbit)
         candidate_orbit_chisquared_partials.append(sum_chisquared_partials)
         # reset for the next loop:
-        orbits_to_keep[list(orbit_to_reject)] = True
-    orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
+        orbits_to_keep[:] = False
+    rejects_from_each_orbit = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
+    # now transform rejects_from_each_orbit into actual orbit indices that we are going to reject.
+    end_index = orbit_index + orbit_multiplicity - np.array(rejects_from_each_orbit)
+    for s, e in zip(orbit_index, end_index):
+        orbits_to_keep[s:e] = True
+    orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
         warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
                       "likely more additional rejected epochs than htof can handle.", UserWarning)
