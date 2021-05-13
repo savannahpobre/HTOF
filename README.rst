@@ -34,6 +34,13 @@ while in the root directory of this repo. It can also be installed directly from
 
     pip install git+https://github.com/gmbrandt/htof
 
+Usage
+-----
+
+HTOF has a rich variety of usages. We encourage the reader to consult the examples.ipynb jupyter notebook
+for a set of usage examples (e.g., fitting the standard astrometric model to data, combining astrometric missions).
+However, we also go into a few basic and specific use cases in this readme.
+
 Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
