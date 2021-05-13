@@ -168,7 +168,6 @@ class TestHipparcosRereductionJavaTool:
         # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70, 71, 72, 73, 74, 75.
         sum_chi2_partials = calculate_chisq_partials(data)
         assert sum_chi2_partials < 0.1  # assert that the IAD reflect a solution that is a stationary point
-        print(sum_chi2_partials)
         if len(rej_obs) > 0:
             assert np.allclose(np.sort(data.additional_rejected_epochs['orbit/scan_angle/time']),
                                np.sort(rej_obs['orbit/scan_angle/time']))

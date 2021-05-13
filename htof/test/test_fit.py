@@ -5,8 +5,8 @@ import pytest
 import timeit
 from astropy.coordinates import Angle
 
-from htof.fit import unpack_elements_of_matrix, AstrometricFitter, normalize, AstrometricFastFitter
-from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix, transform_coefficients_to_unnormalized_domain
+from htof.fit import unpack_elements_of_matrix, AstrometricFitter, AstrometricFastFitter
+from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix
 from htof.sky_path import parallactic_motion
 
 np.random.seed(seed=1234111)
@@ -175,27 +175,6 @@ def test_timing_of_fast_fitter():
 def test_unpack_elements_of_matrix():
     A = np.array([[0, 1], [2, 3]])
     assert np.allclose(np.arange(4), unpack_elements_of_matrix(A))
-
-
-def test_transforming_from_unnormalized_domain():
-    normed_coeffs = [50, 1, 1.1, .3, .4, .5, .6, .07, .08]  # parallax, ra0, dec0, mura, mudec, ara, adec, jra, jdec
-    x = np.arange(50)
-    ra = np.polynomial.polynomial.polyval(normalize(x, (np.min(x), np.max(x))), normed_coeffs[1:][::2])
-    dec = np.polynomial.polynomial.polyval(normalize(x, (np.min(x), np.max(x))), normed_coeffs[1:][1::2])
-    coeffs = transform_coefficients_to_unnormalized_domain(normed_coeffs, np.min(x), np.max(x), np.min(x), np.max(x),
-                                                           True, basis=np.polynomial.polynomial.Polynomial)
-    assert np.allclose(np.polynomial.polynomial.polyval(x, coeffs[1:][::2]), ra)
-    assert np.allclose(np.polynomial.polynomial.polyval(x, coeffs[1:][1::2]), dec)
-    coeffs = transform_coefficients_to_unnormalized_domain(normed_coeffs[1:], np.min(x), np.max(x), np.min(x), np.max(x),
-                                                           False, basis=np.polynomial.polynomial.Polynomial)
-    assert np.allclose(np.polynomial.polynomial.polyval(x, coeffs[::2]), ra)
-    assert np.allclose(np.polynomial.polynomial.polyval(x, coeffs[1::2]), dec)
-
-
-def test_normalize():
-    out = normalize(np.arange(9), (0, 8))
-    assert out.min() == -1 and out.max() == 1
-
 
 """
 Utility functions
