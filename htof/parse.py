@@ -304,7 +304,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
                                                   skiprows=0, header=None, sep=r'\s+')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=header_rows, header=None, sep=r'\s+')
-        self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(psi), data[4] = cos(psi)
+        self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = data[1] + 1991.25
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
