@@ -372,7 +372,8 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                          epoch=epoch, residuals=residuals,
                                                          inverse_covariance_matrix=inverse_covariance_matrix)
 
-    def parse(self, star_id, intermediate_data_directory, attempt_adhoc_rejection=True, reject_known=True, **kwargs):
+    def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
+              reject_known=True, **kwargs):
         # TODO set error error_inflate=True when the F2 value is available in the headers of 2.1 data.
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
                                                                            error_inflate=False, header_rows=5,
@@ -380,12 +381,14 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         max_n_auto_reject = 4
+        total_rejected_epochs = 0
         if attempt_adhoc_rejection:
             if 3 >= n_additional_reject > 0:
                 # Note: you could use find_epochs_to_reject_java_large here and it would be faster for n_additional_reject=3
                 # and basically just as good. The only draw back is it will find slightly different rows (within the same
                 # orbit) to reject, compared to find_epochs_to_reject_java
                 self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
+                total_rejected_epochs += len(self.additional_rejected_epochs['residual/along_scan_error'])
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
@@ -404,6 +407,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         if len(epochs_to_reject) > 0 and reject_known:
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
+            total_rejected_epochs += len(epochs_to_reject)
+        if error_inflate:
+            f2_vals = np.load(pkg_resources.resource_filename('htof', 'data/hip2p1f2vals.npz'))['arr_0']
+            f2 = f2_vals[:, 1][f2_vals[:, 0] == int(header.iloc[0][0])]  # get the f2 value for the hip id.
+            nparam = get_nparam(header.iloc[0][4])
+            self.along_scan_errs *= self.error_inflation_factor(n_transits - total_rejected_epochs, nparam, f2)
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
 

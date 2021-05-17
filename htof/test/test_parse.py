@@ -121,11 +121,11 @@ class TestHipparcosRereductionJavaTool:
     def test_parse(self):
         data = HipparcosRereductionJavaTool()
         data.parse(star_id='27321', intermediate_data_directory=self.test_data_directory)
-        u = 1  # Error inflation factor
+        u = 0.875291 # D. Michalik et al. 2014 Q factor for Hip 27321, calculated by hand
         assert len(data) == 111
         assert np.isclose(data._epoch[0], 1990.0055)
         assert np.isclose(np.sin(data.scan_angle[0]), -0.9050, rtol=.01)
-        assert np.isclose(data.along_scan_errs.values[0], 0.80 * u)
+        assert np.isclose(data.along_scan_errs.values[0], 0.80 * u, atol=0.01)
         assert np.isclose(data._epoch[84], 1991.9523)
         assert np.isclose(np.sin(data.scan_angle[84]), -0.8083, rtol=.01)
 
@@ -167,7 +167,7 @@ class TestHipparcosRereductionJavaTool:
         assert nobs_after_rejection == nobs_initial - num_rejects_writeout_bug - num_known_rejects
         # Note that for hip39, any of the orbits within 1426 are ok to reject. I.e. 70, 71, 72, 73, 74, 75.
         sum_chi2_partials = calculate_chisq_partials(data)
-        assert sum_chi2_partials < 0.1  # assert that the IAD reflect a solution that is a stationary point
+        assert sum_chi2_partials < 0.12  # assert that the IAD reflect a solution that is a stationary point
         if len(rej_obs) > 0:
             assert np.allclose(np.sort(data.additional_rejected_epochs['orbit/scan_angle/time']),
                                np.sort(rej_obs['orbit/scan_angle/time']))
