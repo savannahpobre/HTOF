@@ -45,7 +45,10 @@ Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
 from either Hipparcos data reduction or Gaia. Gaia requires you to first download a .csv of the
-predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/).
+predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/). In particular, using the 'submit for
+events forecast' feature on the website. One should select the widest range of dates
+possible because \codename automatically restricts the predicted epochs of observations
+to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
 Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
