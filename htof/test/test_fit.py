@@ -1,27 +1,24 @@
 import numpy as np
 import mock
 from astropy.time import Time
+import pytest
+import timeit
 from astropy.coordinates import Angle
 
-from htof.fit import unpack_elements_of_matrix, AstrometricFitter, normalize
+from htof.fit import unpack_elements_of_matrix, AstrometricFitter, normalize, AstrometricFastFitter
 from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix, transform_coefficients_to_unnormalized_domain
 from htof.sky_path import parallactic_motion
 
+np.random.seed(seed=1234111)
+
 
 class TestAstrometricFitter:
-    def test_init_epochs_no_norm(self):
-        fitter = AstrometricFitter(astrometric_solution_vector_components=[], central_epoch_dec=1.5, central_epoch_ra=1,
-                                   epoch_times=np.array([1, 2, 3]), astrometric_chi_squared_matrices=[],
-                                   fit_degree=1, use_parallax=False, normed=False)
-        assert np.allclose(fitter.dec_epochs, [-0.5, 0.5, 1.5])
-        assert np.allclose(fitter.ra_epochs, [0, 1, 2])
-
     def test_init_epochs(self):
         fitter = AstrometricFitter(astrometric_solution_vector_components=[], central_epoch_dec=1.5, central_epoch_ra=1,
                                    epoch_times=np.array([1, 2, 3]), astrometric_chi_squared_matrices=[],
-                                   fit_degree=1, use_parallax=False, normed=True)
-        assert np.allclose(fitter.dec_epochs, [-1, 0, 1])
-        assert np.allclose(fitter.ra_epochs, [-1, 0, 1])
+                                   fit_degree=1, use_parallax=False)
+        assert np.allclose(fitter.dec_epochs, [-0.5, 0.5, 1.5])
+        assert np.allclose(fitter.ra_epochs, [0, 1, 2])
 
     def test_ra_solution_vector(self):
         assert np.allclose([326, 2, 30, 60, 1050, 1800, 36750, 54000, 1286250],
@@ -53,9 +50,9 @@ class TestAstrometricFitter:
         ivar = np.ones((2, 2))
         fitter = AstrometricFitter(inverse_covariance_matrices=[ivar, ivar, ivar], epoch_times=[1, 2, 3],
                                    astrometric_solution_vector_components=[], use_parallax=True, fit_degree=3)
-        assert np.allclose(np.ones((9, 9)) * 3, fitter._init_astrometric_chi_squared_matrix(3))
+        assert np.allclose(np.ones((9, 9)) * 3, fitter._init_astrometric_chi_squared_matrix(3)[0])
         fake_chi2_matrix_per_epoch.return_value = np.ones((7, 7))
-        assert np.allclose(np.ones((7, 7)) * 3, fitter._init_astrometric_chi_squared_matrix(2))
+        assert np.allclose(np.ones((7, 7)) * 3, fitter._init_astrometric_chi_squared_matrix(2)[0])
 
     @mock.patch('htof.fit.ra_sol_vec', return_value=np.ones(5))
     @mock.patch('htof.fit.dec_sol_vec', return_value=np.ones(5))
@@ -69,53 +66,57 @@ class TestAstrometricFitter:
         assert np.allclose(expected_c, fitter._chi2_vector(ra_vs_epoch=np.array([1, 1]),
                                                            dec_vs_epoch=np.array([1, 1])))
 
-    def test_fitting_to_linear_astrometric_data(self):
+    @pytest.mark.parametrize('fitter_class', [AstrometricFitter, AstrometricFastFitter])
+    def test_fitting_to_linear_astrometric_data(self, fitter_class):
+        astrometric_data = generate_astrometric_data()
+        fitter = fitter_class(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
+                              epoch_times=astrometric_data['epoch_delta_t'])
+        assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']),
+                           astrometric_data['linear_solution'])
+
+    def test_optimal_central_epoch_on_linear_data(self):
         astrometric_data = generate_astrometric_data()
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
                                    epoch_times=astrometric_data['epoch_delta_t'])
-        assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']),
-                           astrometric_data['linear_solution'])
+        central_epoch_ra, central_epoch_dec = fitter.find_optimal_central_epoch('ra'), fitter.find_optimal_central_epoch('dec')
+        cov_matrix = fitter.evaluate_cov_matrix(central_epoch_ra, central_epoch_dec)
+        assert np.allclose([cov_matrix[0, 2], cov_matrix[1, 3]], 0)
 
     def test_errors_on_linear_astrometric_data(self):
         astrometric_data = generate_astrometric_data()
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
-                                   epoch_times=astrometric_data['epoch_delta_t'],
-                                   normed=False)
+                                   epoch_times=astrometric_data['epoch_delta_t'])
         sol, errs, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert errs.size == 4
         assert np.isclose(0, chisq, atol=1e-7)
 
     def test_fitting_with_nonzero_central_epoch(self):
-        ra_cnt = np.random.randint(1, 100)
-        dec_cnt = np.random.randint(1, 100)
+        ra_cnt = np.random.randint(1, 5)
+        dec_cnt = np.random.randint(1, 5)
         astrometric_data = generate_astrometric_data()
         expected_vec = astrometric_data['linear_solution']
         expected_vec[0] += ra_cnt * expected_vec[2]  # r0 = ra_central_time * mu_ra
         expected_vec[1] += dec_cnt * expected_vec[3]  # dec0 = dec_central_time * mu_dec
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
-                                   epoch_times=astrometric_data['epoch_delta_t'],
-                                   central_epoch_dec=dec_cnt, central_epoch_ra=ra_cnt, normed=True)
+                              epoch_times=astrometric_data['epoch_delta_t'],
+                              central_epoch_dec=dec_cnt, central_epoch_ra=ra_cnt)
         assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']), expected_vec)
 
-    def test_fitting_without_normalization(self):
-        ra_cnt = np.random.randint(1, 100)
-        dec_cnt = np.random.randint(1, 100)
-        astrometric_data = generate_astrometric_data()
-        expected_vec = astrometric_data['linear_solution']
-        expected_vec[0] += ra_cnt * expected_vec[2]  # r0 = ra_central_time * mu_ra
-        expected_vec[1] += dec_cnt * expected_vec[3]  # dec0 = dec_central_time * mu_dec
-        fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
-                                   epoch_times=astrometric_data['epoch_delta_t'],
-                                   central_epoch_dec=dec_cnt, central_epoch_ra=ra_cnt, normed=True)
-        assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']), expected_vec)
-
-    def test_fitting_to_cubic_astrometric_data(self):
+    @pytest.mark.parametrize('fitter_class', [AstrometricFitter, AstrometricFastFitter])
+    def test_fitting_to_cubic_astrometric_data(self, fitter_class):
         astrometric_data = generate_astrometric_data(acc=True, jerk=True)
-        fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
-                                   epoch_times=astrometric_data['epoch_delta_t'], use_parallax=False, fit_degree=3,
-                                   normed=False)
+        fitter = fitter_class(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
+                              epoch_times=astrometric_data['epoch_delta_t'], use_parallax=False, fit_degree=3)
         assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']),
                            astrometric_data['nonlinear_solution'], atol=0, rtol=1E-4)
+
+    def test_optimal_central_epoch_on_cubic_data(self):
+        astrometric_data = generate_astrometric_data(acc=True, jerk=True)
+        fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
+                                   epoch_times=astrometric_data['epoch_delta_t'], use_parallax=False, fit_degree=3)
+        central_epoch_ra, central_epoch_dec = fitter.find_optimal_central_epoch('ra'), fitter.find_optimal_central_epoch('dec')
+        cov_matrix = fitter.evaluate_cov_matrix(central_epoch_ra, central_epoch_dec)
+        assert np.allclose([cov_matrix[0, 2], cov_matrix[1, 3]], 0)
 
     def test_fitting_to_linear_astrometric_data_with_parallax(self):
         real_plx = 100
@@ -128,7 +129,7 @@ class TestAstrometricFitter:
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
                                    epoch_times=astrometric_data['epoch_delta_t'], use_parallax=True,
                                    parallactic_pertubations={'ra_plx': ra_pert, 'dec_plx': dec_pert},
-                                   fit_degree=1, normed=False)
+                                   fit_degree=1)
         solution, errors, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert np.allclose(solution[1:], astrometric_data['linear_solution'], atol=0, rtol=1E-6)
         assert np.allclose(solution[0], real_plx)
@@ -144,30 +145,10 @@ class TestAstrometricFitter:
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
                                    epoch_times=astrometric_data['epoch_delta_t'], use_parallax=True,
                                    parallactic_pertubations={'ra_plx': ra_pert, 'dec_plx': dec_pert},
-                                   fit_degree=3, normed=False)
+                                   fit_degree=3)
         solution, errors, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert np.allclose(solution[1:], astrometric_data['nonlinear_solution'], atol=0, rtol=1E-4)
         assert np.allclose(solution[0], real_plx)
-
-    def test_solutions_equal_on_normed_and_unnormed(self):
-        real_plx = 100
-        cntr_dec, cntr_ra = Angle(45, unit='degree'), Angle(45, unit='degree')
-        astrometric_data = generate_astrometric_data(acc=True, jerk=True)
-        jyear_epochs = Time(astrometric_data['epoch_delta_t'] + 2012, format='decimalyear').jyear
-        ra_pert, dec_pert = parallactic_motion(jyear_epochs, cntr_dec.mas, cntr_ra.mas, 'mas', 2012, parallax=1)
-        astrometric_data['dec'] += dec_pert * real_plx
-        astrometric_data['ra'] += ra_pert * real_plx
-        fitters = []
-        for normed in [True, False]:
-            fitters.append(AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
-                                             epoch_times=astrometric_data['epoch_delta_t'], use_parallax=True,
-                                             parallactic_pertubations={'ra_plx': ra_pert, 'dec_plx': dec_pert},
-                                             fit_degree=3, normed=normed))
-        solution1, errors1, chisq1 = fitters[0].fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
-        solution2, errors2, chisq2 = fitters[1].fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
-        assert np.allclose(errors2, errors1)
-        assert np.isclose(chisq1, chisq2)
-        assert np.allclose(solution1, solution2)
 
     def test_fitter_removes_parallax(self):
         astrometric_data = generate_astrometric_data()
@@ -176,6 +157,19 @@ class TestAstrometricFitter:
         assert fitter._chi2_matrix.shape == (8, 8)
         assert fitter.astrometric_solution_vector_components['ra'][0].shape == (8,)
         assert fitter.astrometric_solution_vector_components['dec'][0].shape == (8,)
+
+
+def test_timing_of_fast_fitter():
+    astrometric_data = generate_astrometric_data(acc=True, jerk=True)
+    fitter = AstrometricFastFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
+                                   epoch_times=astrometric_data['epoch_delta_t'], use_parallax=False, fit_degree=3)
+    assert np.allclose(fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']),
+                       astrometric_data['nonlinear_solution'], atol=0, rtol=1E-4)
+    t = timeit.Timer(lambda: fitter.fit_line(astrometric_data['ra'], astrometric_data['dec']))
+    num = int(1E4)
+    runtime = t.timeit(number=num) / num * 1E6
+    # reenable this test if we add back the @numba decorator for the FastFitter.
+    #assert runtime < 10  # assert that the fast fitter fit_line time is less than 10 microseconds.
 
 
 def test_unpack_elements_of_matrix():

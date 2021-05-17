@@ -7,21 +7,28 @@ Hipparcos satellites, and reproducing five, seven, and nine (or higher) paramete
 .. image:: https://coveralls.io/repos/github/gmbrandt/HTOF/badge.svg?branch=master
     :target: https://coveralls.io/github/gmbrandt/HTOF?branch=master
 
-.. image:: https://travis-ci.org/gmbrandt/HTOF.svg?branch=master
-    :target: https://travis-ci.org/gmbrandt/HTOF
+.. image:: https://travis-ci.com/gmbrandt/HTOF.svg?branch=master
+    :target: https://travis-ci.com/gmbrandt/HTOF
 
 Parallax is handled by the :code:`sky_path` module which was written by Anthony Brown
 as a part of his astrometric-sky-path package: https://github.com/agabrown/astrometric-sky-path/
 
 Installation
 ------------
-htof can be installed in the usual way, by running
+htof can be installed with PyPi and pip, by running
+
+.. code-block:: bash
+
+    pip install htof
+
+or by running
 
 .. code-block:: bash
 
     pip install .
 
-While in the root directory of this repo. It can also be installed with
+
+while in the root directory of this repo. It can also be installed directly from github using
 
 .. code-block:: bash
 
@@ -30,11 +37,13 @@ While in the root directory of this repo. It can also be installed with
 Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
-from either Hipparcos data reduction or Gaia (Currently only data release 2, GaiaDR2).
+from either Hipparcos data reduction or Gaia. Gaia requires you to first download a .csv of the
+predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/).
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
 Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
-are :code:`GaiaDR2`, :code:`Hip1` and :code:`Hip2`. The following lines parse the intermediate data and fit a line.
+are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1` and :code:`Hip2`.
+The following lines parse the intermediate data and fit a line.
 
 .. code-block:: python
 
@@ -50,6 +59,13 @@ are the same as the choices for format in astropy.time.Time(val, format=format).
 E.g. :code:`'decimalyear'`, :code:`'jd'` . If :code:`format='decimalyear'`, then the output :code:`mu_ra`
 would have units of mas/year. If :code:`jd` then the output is mas/day. Both Hipparcos and Gaia catalogs list parallaxes
 in milli-arcseconds (mas), and so positional units are always in mas for HTOF.
+
+When using Gaia, one should download the largest stretch of GOST times possible (covering at least the eDR3
+timespan, e.g. covering at least the dates BJD 2456892 to BJD 2457902).
+:code:`GaiaeDR3` will select all data corresponding to the eDR3 data interval and exclude
+eDR3 deadtimes. :code:`GaiaDR2` will select all data corresponding to the DR2 data interval (excluding dead times).
+Finally, :code:`Gaia` will select all the data present in the GOST predicted observation file that you have
+downloaded.
 
 For Hipparcos 2, the path to the intermediate data would point to :code:`IntermediateData/resrec/`.
 Note that the intermediate data files must be in the same format as the test intermediate data files found in this
@@ -109,15 +125,16 @@ If you want the standard (1-sigma) errors on the parameters, set :code:`return_a
     coeffs, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
 
 
-chisq is the chi-squared of the fit (the sum of `(data - model)^2`). For Hip2, this chi-squared
-should equal the chi-squared calculated from the intermediate data via
-
 `errors` is an array the same shape as coeffs, where each entry is the 1-sigma error for the
 parameter at the same location in the coeffs array. For Hip1 and Hip2, HTOF loads in the real
-catalog errors and so these parameter error estimates should match those given in the catalog. However,
-for Gaia we do not have the error estimates from the GOST tool and so the best-fit parameter errors to
-Gaia will not match those reported by the Gaia members.
+catalog errors and so these parameter error estimates should match those given in the catalog. For Hip2, the
+along scan errors are automatically inflated or deflated in accordance with D. Michalik et al. 2014.
+For Gaia we do not have the error estimates from the GOST tool and so the best-fit parameter errors to
+Gaia may not match those reported by the catalog.
 
+
+`chisq` is the chi-squared of the fit (the sum of `(data - model)^2/error^2`). The `chisq` from `astro.fit`
+should equal (for Hip1 and Hip2) the chi-squared calculated from the intermediate data:
 
 .. code-block:: python
 
@@ -133,11 +150,28 @@ with any of the kwargs or args of ``astropy.table.Table.write()``.
 
 Usage: Fits with Parallax
 -------------------------
-TODO: Discuss how to get parallax, how to generate the plx pertubations. Why you have to specify
-a central ra and dec, and that those must be instances of astropy.coordinates.Angle.
+To fit an object with parallax, we need to provide a `central_ra` and `central_dec` to the `Astrometry` class. These positions
+will be used to calculate the parallax components of the fit. Using beta pic as an example, we would do:
+
+
+.. code-block:: python
+
+    from htof.main import Astrometry
+    # central ra and dec from the Hip1 catalog
+    cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
+    # generate fitter and parse intermediate data
+    astro = Astrometry('Hip1', '27321', 'path/to/intermediate_data/', central_epoch_ra=1991.25,
+                       central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
+                       central_ra=cntr_ra, central_dec=cntr_dec)
+    coeffs, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    parallax, ra0, dec0, mu_ra, mu_dec = coeffs
+
 
 Appendix
 --------
+
+Parsing and fitting manually
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The Astrometry object is essentially just a wrapper for data parsing and fitting all in one, and consequently
 could be limiting. This section describes how to reproduce Astrometry.fit by accessing the data parser objects and
 the fitter object separately. You would do this if, for instance, you did not want to use
@@ -187,6 +221,61 @@ where :code:`ra(mjd) = ra0 + mu_ra * mjd`, and same for declination.
 
 To fit a line with parallax, we first have to generate the parallactic motion about the central ra and dec. We do this
 with the following code.
+
+.. code-block:: python
+
+    from htof.sky_path import earth_ephemeris
+    ra_motion, dec_motion = parallactic_motion(Time(hip.julian_day_epoch(), format='jd').jyear,
+                                           central_ra.mas, central_dec.mas, 'mas',
+                                           1991.25,
+                                           ephemeris=self.ephemeri[data_choice.lower()])
+    parallactic_pertubations = {'ra_plx': ra_motion, 'dec_plx': dec_motion}
+
+
+Now that we have the parallax components of the fit, we can provide these to the `AstrometricFitter` object to
+produce a fit which includes parallax. We now do:
+
+.. code-block:: python
+
+    fitter = AstrometricFitter(inverse_covariance_matrices=hip.inverse_covariance_matrix,
+                               epoch_times=Time(hip.julian_day_epoch(), format='jd').jyear,
+                               use_parallax=True,
+                               parallactic_pertubations=parallactic_pertubations,
+                               central_epoch_ra=1991.25, central_epoch_dec=1991.25)
+    solution_vector = fitter.fit_line(ra_vs_epoch, dec_vs_epoch)
+    parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
+
+
+For more examples, refer to the `examples.ipynb` Jupyter notebook. There we will make a figure like Figure 5 from the HTOF paper.
+
+Flagged Sources
+~~~~~~~~~~~~~~~
+There are a small number of sources in the original reduction of Hipparcos and the re-reductions (e.g. the DVD version
+of the 2007 re-reduction) that HTOF cannot well refit. These sources should be used cautiously and are listed by HIP ID in
+the files in the htof/data directory, e.g. htof/data/hip1_flagged.txt for the 1997 reduction and
+htof/data/hip2_dvd_flagged.txt for the 2007 re-reduction which came on the DVD accompanying the book. Every source in
+these lists have a difference in the catalog best fit proper motions and the HTOF refit proper motions in excess
+of 0.02 mas/yr in either RA or DEC or both.
+
+
+Astrometric Gaps
+~~~~~~~~~~~~~~~~
+Not all of the planned observations will be used in the astrometric solution.
+Some predicted scans will represent missed observations (satellite dead times),
+executed but unusable observations (e.g.~from cool-down after decontamination),
+or observations rejected as astrometric outliers.  Rejected observations could
+be corrupted due to, e.g.~micro-clanks, scattered light from a nearby bright
+source, crowded fields, micro-meteoroid hits,
+etc.~(See https://www.cosmos.esa.int/web/gaia/dr2-data-gaps).
+Such problematic observations do not constrain the DR2 astrometric solution.
+The largest stretches of dead times and rejected observations are
+published as astrometric gaps; 239 are listed at the time of this
+publication for DR2 (available here https://www.cosmos.esa.int/web/gaia/dr2-data-gaps).
+We fetched the DR2 dead times on 2020/08/25. htof accounts for these astrometric gaps in DR2.
+
+The eDR3 dead times were fetched from https://www.aanda.org/articles/aa/pdf/forth/aa39709-20.pdf on
+2020/12/23. htof accounts for these astrometric gaps in eDR3.
+
 
 License
 -------

@@ -22,7 +22,7 @@ def test_merge_consortia_equal_on_flipped_rows():
     data2 = pd.DataFrame([[133, 'N', -0.9051, -0.4252,  0.6263, 1.1265,  0.5291, -1.18, 1.59, 0.393],
                          [133, 'F', -0.9053, -0.4248,  0.6270,  1.1264,  0.5285, -2.50,  2.21,  0.393]],
                         columns=['A1', 'IA2', 'IA3', 'IA4', 'IA5', 'IA6', 'IA7', 'IA8', 'IA9', 'IA10'])
-    pd.testing.assert_frame_equal(merge_consortia(data2), merge_consortia(data1), check_less_precise=2)
+    pd.testing.assert_frame_equal(merge_consortia(data2), merge_consortia(data1))
 
 
 def test_safe_concatenate():
