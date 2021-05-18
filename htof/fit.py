@@ -5,8 +5,7 @@ Author: G. Mirek Brandt
 """
 #from numba import jit
 import numpy as np
-import warnings
-from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix, transform_coefficients_to_unnormalized_domain
+from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix
 from htof.utils.fit_utils import chisq_of_fit
 
 
