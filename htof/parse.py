@@ -354,6 +354,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         not_outlier = np.ones(len(self), dtype=bool)
         np.put(not_outlier, orbits_to_reject, False)
         self._epoch, self.scan_angle = self._epoch[not_outlier], self.scan_angle[not_outlier]
+        self.parallax_factors = self.parallax_factors[not_outlier]
         setattr(self, attr_to_set, value)
 
     @property
