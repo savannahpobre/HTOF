@@ -211,6 +211,11 @@ def calc_inverse_covariance_matrices(scan_angles, cross_scan_along_scan_var_rati
     """
     if along_scan_errs is None or len(along_scan_errs) == 0:
         along_scan_errs = np.ones_like(scan_angles.values.flatten())
+    if np.any(np.isclose(along_scan_errs, 0)):
+        warnings.warn('Along scan error found that is zero. This is unphysical. Cannot '
+                      'compute the inverse covariance matrices. Setting this AL error '
+                      'to a large number and continuing.', RuntimeWarning)
+        along_scan_errs[np.isclose(along_scan_errs, 0)] = 1000
     icovariance_matrices = []
     icov_matrix_in_scan_basis = np.array([[1, 0],
                                          [0, 1/cross_scan_along_scan_var_ratio]])
@@ -463,7 +468,7 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     rows_to_keep = np.ones(len(data), dtype=bool)
-    orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])
+    orbit_factors = np.array([data.parallax_factors.values, sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])
     residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)
     chi2_vector = (2 * residual_factors * orbit_factors).T
     sum_chisquared_partials_norejects = np.sqrt(np.sum(np.sum(chi2_vector, axis=0) ** 2))
@@ -529,7 +534,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
 
     residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
     mask_rejected_resid = (data.along_scan_errs.values > 0).astype(bool)[residuals_to_keep]
-    _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
+    _orbit_factors = np.array([data.parallax_factors.values, sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
     # we should be able to do the orbit reject calculation fairly easily in memory.
     # for 100 choose 3 we have like 250,000 combinations of orbits -- we sghould be able to
     # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.

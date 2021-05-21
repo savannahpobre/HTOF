@@ -34,9 +34,13 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})
 
     fit_coeffs, errors, chisq = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
+    parallax_factors = ra_motion * np.sin(data.scan_angle.values) + dec_motion * np.cos(data.scan_angle.values)
+    # technically this could be data.parallax_factors.values, but then we have to deal with
+    # getting the RA and Dec components of that.
     if not use_parallax:
         fit_coeffs = np.hstack([[0], fit_coeffs])
         errors = np.hstack([[0], errors])
+        parallax_factors = np.zeros_like(parallax_factors)
     # pad so coeffs and errors are 9 long.
     errors = np.pad(errors, (0, 9 - len(fit_coeffs)))
     fit_coeffs = np.pad(fit_coeffs, (0, 9 - len(fit_coeffs)))
@@ -45,7 +49,7 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     chi2_vector = (2 * data.residuals.values / data.along_scan_errs.values ** 2 * np.array(
-        [sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
+        [parallax_factors, sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
     chi2_partials = np.sum(chi2_vector, axis=0) ** 2
     return fit_coeffs, errors, chisq, chi2_partials
 
@@ -78,7 +82,7 @@ def refit_hip1_object(iad_dir, hip_id, hip_dm_g=None, use_parallax=False):
 
         return tuple((diffs, errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = None, nine_p_annex: Table = None, use_parallax=False):
@@ -104,7 +108,7 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
                                                                  use_parallax=use_parallax)
         return tuple((diffs, errors - cat_errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
@@ -121,7 +125,7 @@ def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
                                                                  use_parallax=use_parallax)
         return tuple((diffs, errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def get_cat_values_hip1(fname):

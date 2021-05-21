@@ -16,7 +16,7 @@ class Engine(object):
         plx, ra, dec, pm_ra, pm_dec, acc_ra, acc_dec, jerk_ra, jerk_dec = diffs
         return {'hip_id': hip_id, 'diff_ra': ra, 'diff_dec': dec, 'diff_plx': plx, 'diff_pm_ra': pm_ra, 'diff_pm_dec': pm_dec,
                 'soltype': soltype, 'diff_acc_ra': acc_ra, 'diff_acc_dec': acc_dec, 'diff_jerk_ra': jerk_ra, 'diff_jerk_dec': jerk_dec,
-                'chisquared': chisq, 'dxdra0': partials[0], 'dxddec0': partials[1], 'dxdmura': partials[2], 'dxdmudec': partials[3]}
+                'chisquared': chisq, 'dxdparallax': partials[0], 'dxdra0': partials[1], 'dxddec0': partials[2], 'dxdmura': partials[3], 'dxdmudec': partials[4]}
 
 
 class Hip1Engine(Engine):
@@ -137,9 +137,7 @@ if __name__ == "__main__":
         # fit only a small subset of the desired sources if debugging.
         hip_ids = hip_ids[:100]
     hip_ids.sort()
-    if args.hip_reduction == 21:
-        hip_ids = 93424  # this source has an observation with an along scan error of 0 in the Java tool IAD.
-    #engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
+    engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
     print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.
