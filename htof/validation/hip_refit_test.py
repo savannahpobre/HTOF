@@ -136,7 +136,10 @@ if __name__ == "__main__":
     if args.debug:
         # fit only a small subset of the desired sources if debugging.
         hip_ids = hip_ids[:100]
-    #hip_ids = [117297, 8000]
+    hip_ids.sort()
+    if args.hip_reduction == 21:
+        hip_ids = 93424  # this source has an observation with an along scan error of 0 in the Java tool IAD.
+    #engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
     print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.

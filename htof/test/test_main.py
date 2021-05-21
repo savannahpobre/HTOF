@@ -85,6 +85,24 @@ class TestHip1Fits:
 
 
 @pytest.mark.e2e
+def test_parallax_factors():
+    # Hip 27321 parameters from the Hipparcos 1 catalogue via Vizier
+    cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
+    # generate fitter and parse intermediate data
+    astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
+                       central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
+                       central_ra=cntr_ra, central_dec=cntr_dec)
+    # generate ra and dec for each observation.
+    year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
+                  Time(1991.25, format='decimalyear').jyear
+    ra_motion = astro.fitter.parallactic_pertubations['ra_plx']
+    dec_motion = astro.fitter.parallactic_pertubations['dec_plx']
+    # check the parallax factors
+    assert np.allclose(astro.data.parallax_factors.values,
+                       ra_motion * np.sin(astro.data.scan_angle.values) + dec_motion * np.cos(astro.data.scan_angle.values),
+                       atol=0.03)
+
+@pytest.mark.e2e
 def test_Hip1_fit_to_hip27321():
     # Hip 27321 parameters from the Hipparcos 1 catalogue via Vizier
     cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')

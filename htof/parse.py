@@ -35,10 +35,11 @@ class DataParser(object):
     as pandas.DataFrame. use .values (e.g. self.epoch.values) to call the ndarray version.
     """
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None):
+                 along_scan_errs=None, parallax_factors=None):
         self.scan_angle = pd.Series(scan_angle, dtype=np.float64)
         self._epoch = pd.DataFrame(epoch, dtype=np.float64)
         self.residuals = pd.Series(residuals, dtype=np.float64)
+        self.parallax_factors = pd.Series(parallax_factors, dtype=np.float64)
         self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
 
@@ -254,6 +255,7 @@ class HipparcosOriginalData(DecimalYearData):
         self._epoch = 1991.25 + (data['IA6'] / data['IA3']).where(abs(data['IA3']) > abs(data['IA4']), (data['IA7'] / data['IA4']))
         self.residuals = data['IA8']  # unit milli-arcseconds (mas)
         self.along_scan_errs = data['IA9']  # unit milli-arcseconds
+        self.parallax_factors = data['IA5']
 
     @staticmethod
     def _select_data(data, data_choice):
@@ -308,6 +310,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self._epoch = data[1] + 1991.25
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
+        self.parallax_factors = data[2]
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
             warnings.warn(f"Print htof is attempting to find the epochs for this DVD IAD that need to be rejected."

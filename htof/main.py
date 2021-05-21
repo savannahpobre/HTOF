@@ -37,6 +37,9 @@ class Astrometry(object):
             data.calculate_inverse_covariance_matrices()
 
         parallactic_pertubations = None
+        # TODO Change parallactic_perturbations to parallax_factors
+        # also maybe add something like: recompute_parallax_factors or soemthing
+        # because it is kind of unnecessary that we recompute the parallax factors.
         if use_parallax and isinstance(central_ra, Angle) and isinstance(central_dec, Angle):
             if central_epoch_dec != central_epoch_ra:
                 warnings.warn('central_epoch_dec != central_epoch_ra. '
