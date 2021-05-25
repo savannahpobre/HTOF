@@ -10,7 +10,6 @@
 """
 
 import numpy as np
-import json
 import pandas as pd
 import warnings
 import os
@@ -402,16 +401,18 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
+                print(self.additional_rejected_epochs)
+                f = open(f"{str(star_id)}.txt", "w")
+                f.write(str(self.additional_rejected_epochs))
+                f.close()
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file
                 orbit_number = raw_data[0].values
-                print(n_additional_reject)
-                additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
-                jsonf = json.dumps(additional_rejected_epochs)
-                f = open(f"{str(star_id)}.json", "w")
-                f.write(jsonf)
+                print(star_id, n_additional_reject)
+                self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
+                f = open(f"{str(star_id)}.txt", "w")
+                f.write(str(self.additional_rejected_epochs))
                 f.close()
-                self.additional_rejected_epochs = additional_rejected_epochs
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
                           "You are foregoing the write out bug "
