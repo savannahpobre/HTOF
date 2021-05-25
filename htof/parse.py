@@ -402,8 +402,11 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
             if n_additional_reject > max_n_auto_reject:
-                warnings.warn(f"more than {max_n_auto_reject} bugged epochs for {star_id}, cannot "
-                              f"automatically fix this source. ", UserWarning)
+                # These take too long to do automatically, pull the epochs to reject from the file
+                orbit_number = raw_data[0].values
+                additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
+                print(additional_rejected_epochs)
+                self.additional_rejected_epochs = additional_rejected_epochs
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
                           "You are foregoing the write out bug "

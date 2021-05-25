@@ -137,7 +137,7 @@ if __name__ == "__main__":
         # fit only a small subset of the desired sources if debugging.
         hip_ids = hip_ids[:100]
     hip_ids.sort()
-    engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
+    #engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
     print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.
