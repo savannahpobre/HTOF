@@ -10,6 +10,7 @@
 """
 
 import numpy as np
+import json
 import pandas as pd
 import warnings
 import os
@@ -404,8 +405,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file
                 orbit_number = raw_data[0].values
+                print(n_additional_reject)
                 additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
-                print(additional_rejected_epochs)
+                jsonf = json.dumps(additional_rejected_epochs)
+                f = open(f"{str(star_id)}.json", "w")
+                f.write(jsonf)
+                f.close()
                 self.additional_rejected_epochs = additional_rejected_epochs
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
