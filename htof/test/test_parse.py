@@ -174,6 +174,15 @@ class TestHipparcosRereductionJavaTool:
             assert np.allclose(np.sort(data.additional_rejected_epochs['residual/along_scan_error']),
                                np.sort(rej_obs['residual/along_scan_error']))
 
+    def test_reject_obs_from_precomputed_list(self):
+        # hip 651 is a great test source because it has 3 rejected observations (negative AL errors)
+        # and it has an uncatalogued rejection that we need to fix (i.e., an extra, 4th, rejection).
+        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
+        data = HipparcosRereductionJavaTool()
+        data.parse(star_id=17447, intermediate_data_directory=test_data_directory)
+        sum_chi2_partials = calculate_chisq_partials(data)
+        assert sum_chi2_partials < 0.12  # assert that the IAD reflect a solution that is a stationary point
+
 
 class TestDataParser:
     def test_parse_raises_file_not_found_error(self):

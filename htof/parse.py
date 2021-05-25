@@ -12,6 +12,7 @@
 import numpy as np
 import pandas as pd
 import warnings
+from ast import literal_eval
 import os
 import re
 import glob
@@ -375,11 +376,15 @@ class HipparcosRereductionDVDBook(DecimalYearData):
 
 
 class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
+    EPOCHREJECTLIST = Table.read(pkg_resources.resource_filename('htof',
+                                                                 'data/epoch_reject_shortlist.csv'), format='ascii')
+
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
                  along_scan_errs=None):
         super(HipparcosRereductionJavaTool, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                          epoch=epoch, residuals=residuals,
                                                          inverse_covariance_matrix=inverse_covariance_matrix)
+
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
@@ -401,18 +406,17 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
-                print(self.additional_rejected_epochs)
-                f = open(f"{str(star_id)}.txt", "w")
-                f.write(str(self.additional_rejected_epochs))
-                f.close()
             if n_additional_reject > max_n_auto_reject:
-                # These take too long to do automatically, pull the epochs to reject from the file
-                orbit_number = raw_data[0].values
-                print(star_id, n_additional_reject)
-                self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
-                f = open(f"{str(star_id)}.txt", "w")
-                f.write(str(self.additional_rejected_epochs))
-                f.close()
+                # These take too long to do automatically, pull the epochs to reject from the file that we computed
+                correct_id = header.iloc[0][0]
+                t = self.EPOCHREJECTLIST[self.EPOCHREJECTLIST['hip_id'] == int(correct_id)]
+                if len(t) == 1:
+                    self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
+                                                       'orbit/scan_angle/time': literal_eval(t['orbit/scan_angle/time'][0])}
+                else:
+                    warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} bugged epochs, and'
+                                  f' the correct epochs to reject are not in the known list '
+                                  f'(epoch_reject_shortlist.csv)', UserWarning)
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
                           "You are foregoing the write out bug "
