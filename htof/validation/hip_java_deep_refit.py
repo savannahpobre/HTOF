@@ -122,13 +122,14 @@ if __name__ == "__main__":
         orbit_number = raw_iad[0].values
         correct_id = header.iloc[0][0]
         norb = len(np.unique(orbit_number))
-        comb = nchoosek(norb + n_additional_reject - 1, n_additional_reject - 1)
-        print(norb, n_additional_reject)
+        comb = nchoosek(norb + n_additional_reject - 1, norb - 1)
         memory_size = comb * 8
-        print(memory_size/1e6)
-        additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
-                                                                                   orbit_number, args.cores)
-        f = open(f"{str(int(correct_id))}.txt", "w")
-        f.write(str(additional_rejected_epochs))
-        f.close()
+        print(comb)
+        #print(memory_size/1e6)
+        if comb < 1.2*8145060:  # we just don't try it if there are too many combinations
+            additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
+                                                                                       orbit_number, args.cores)
+            f = open(f"{str(int(correct_id))}.txt", "w")
+            f.write(str(additional_rejected_epochs))
+            f.close()
 
