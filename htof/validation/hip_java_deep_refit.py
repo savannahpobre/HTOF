@@ -1,42 +1,28 @@
 import numpy as np
 from argparse import ArgumentParser
-import copy
-from scipy.special import comb as nchoosek
 from htof.parse import partitions, HipparcosRereductionJavaTool
 
 
-from multiprocessing import Pool
+def calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_multiplicity, orbits_to_keep, _orbit_factors,
+             residual_factors, mask_rejected_resid):
+    end_index = orbit_index + orbit_multiplicity - rejects_from_each_orbit
+    for s, e in zip(orbit_index, end_index):
+        orbits_to_keep[s:e] = True
+    # now we want to try a variety of deleting orbits and sliding the other orbits
+    # upward to fill the vacancy.
+    # this pops the orbits out and shifts all the orbits after:
+    orbit_factors = _orbit_factors[orbits_to_keep].T
+    # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
+    # shifted orbits, and calculates the chi2 partials vector per orbit:
+    chi2_vector = (2 * residual_factors * orbit_factors).T
+    # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
+    sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
+    # reset for the next loop:
+    orbits_to_keep[:] = False
+    return rejects_from_each_orbit, sum_chisquared_partials
 
 
-class Engine(object):
-    def __init__(self, orbit_index, orbit_multiplicity, orbits_to_keep, orbit_factors,
-                 residual_factors, mask_rejected_resid):
-        self.orbit_index = orbit_index
-        self.orbit_multiplicity = orbit_multiplicity
-        self.orbits_to_keep = copy.deepcopy(orbits_to_keep)
-        self.orbit_factors = orbit_factors
-        self.residual_factors = residual_factors
-        self.mask_rejected_resid = mask_rejected_resid
-
-    def __call__(self, rejects_from_each_orbit):
-        end_index = self.orbit_index + self.orbit_multiplicity - rejects_from_each_orbit
-        for s, e in zip(self.orbit_index, end_index):
-            self.orbits_to_keep[s:e] = True
-        # now we want to try a variety of deleting orbits and sliding the other orbits
-        # upward to fill the vacancy.
-        # this pops the orbits out and shifts all the orbits after:
-        orbit_factors = self.orbit_factors[self.orbits_to_keep].T
-        # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
-        # shifted orbits, and calculates the chi2 partials vector per orbit:
-        chi2_vector = (2 * self.residual_factors * orbit_factors).T
-        # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
-        sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[self.mask_rejected_resid], axis=0) ** 2))
-        # reset for the next loop:
-        self.orbits_to_keep[:] = False
-        return [rejects_from_each_orbit, sum_chisquared_partials]
-
-
-def find_epochs_to_reject_java_large_parallelized(data, n_additional_reject, orbit_number, ncore):
+def find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number):
     # this is for any java tool object where n_additional_reject is greater than 3.
     # we assume the scan angles and times of rows in the same orbit are similar, therefore we only have
     # to try all combinations of distributing n_additional_reject rejected epochs among N orbits
@@ -57,25 +43,19 @@ def find_epochs_to_reject_java_large_parallelized(data, n_additional_reject, orb
     residual_factors = (data.residuals.values / data.along_scan_errs.values ** 2)[residuals_to_keep]
     mask_rejected_resid = (data.along_scan_errs.values > 0).astype(bool)[residuals_to_keep]
     _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
-
-    trials = []
-    # restrict to trial sets of orbit rejections that are viable.
+    candidate_orbit_rejects = []
+    candidate_orbit_chisquared_partials = []
     for rejects_from_each_orbit in partitions(n_additional_reject, num_unique_orbits):
-        if np.all(rejects_from_each_orbit <= orbit_multiplicity):
-            trials.append(np.array(rejects_from_each_orbit, dtype=np.uint8))
-    trials = np.array(trials, dtype=np.uint8)
-    print(len(trials))
-    try:
-        pool = Pool(ncore)
-        engine = Engine(orbit_index, orbit_multiplicity,
-                        np.zeros(len(data), dtype=bool), _orbit_factors,
-                        residual_factors, mask_rejected_resid)
-        out = pool.map(engine, trials)
-    finally:  # This makes sure processes are closed in the end, even if errors happen
-        pool.close()
-        pool.join()
-    candidate_orbit_rejects = [out[i][0] for i in range(len(out))]
-    candidate_orbit_chisquared_partials = [out[i][1] for i in range(len(out))]
+        if np.any(rejects_from_each_orbit > orbit_multiplicity):
+            # ignore any trials of rejects that put e.g. 10 rejects into an orbit with only 4 observations.
+            continue
+        rejects_from_each_orbit, sum_chisquared_partials = calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_multiplicity, orbits_to_keep, _orbit_factors,
+             residual_factors, mask_rejected_resid)
+        if sum_chisquared_partials > 1:
+            # if the solution is bad, don't even save it. This will reduce memory usage.
+            continue
+        candidate_orbit_rejects.append(rejects_from_each_orbit)
+        candidate_orbit_chisquared_partials.append(sum_chisquared_partials)
     rejects_from_each_orbit = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     # now transform rejects_from_each_orbit into actual orbit indices that we are going to reject.
     end_index = orbit_index + orbit_multiplicity - np.array(rejects_from_each_orbit)
@@ -97,8 +77,6 @@ if __name__ == "__main__":
                         help="full path to the intermediate data directory")
     parser.add_argument("-i", "--inlist", required=False, default=None,
                         help=".txt file with the list of sources you want to refit.")
-    parser.add_argument("-c", "--cores", required=False, default=1, type=int,
-                        help="Number of cores to use. Default is 1.")
     parser.add_argument("--debug", action='store_true', default=False, required=False,
                         help='If true, this will run the refit test on only 500 sources. Useful to check for '
                              'filepath problems before running the full test on all ~100000 sources.')
@@ -121,15 +99,8 @@ if __name__ == "__main__":
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         orbit_number = raw_iad[0].values
         correct_id = header.iloc[0][0]
-        norb = len(np.unique(orbit_number))
-        comb = nchoosek(norb + n_additional_reject - 1, norb - 1)
-        memory_size = comb * 8
-        print(comb)
-        print(memory_size/1e9)
-        if comb < 20558520.0:  # we just don't try parallelized if there are too many combinations
-            additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
-                                                                                       orbit_number, args.cores)
-            f = open(f"{str(int(correct_id))}.txt", "w")
-            f.write(str(additional_rejected_epochs))
-            f.close()
+        additional_rejected_epochs = find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number)
+        f = open(f"{str(int(correct_id))}.txt", "w")
+        f.write(str(additional_rejected_epochs))
+        f.close()
 
