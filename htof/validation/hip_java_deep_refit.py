@@ -125,8 +125,8 @@ if __name__ == "__main__":
         comb = nchoosek(norb + n_additional_reject - 1, norb - 1)
         memory_size = comb * 8
         print(comb)
-        #print(memory_size/1e6)
-        if comb < 1.2*8145060:  # we just don't try it if there are too many combinations
+        print(memory_size/1e9)
+        if comb < 20558520.0:  # we just don't try parallelized if there are too many combinations
             additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
                                                                                        orbit_number, args.cores)
             f = open(f"{str(int(correct_id))}.txt", "w")
