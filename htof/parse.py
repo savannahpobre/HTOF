@@ -541,8 +541,6 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     resid_reject_idx = [len(data) - 1 - i for i in range(int(n_additional_reject))]  # always reject the repeated observations.
     # need to iterate over popping orbit combinations
     orbits_to_keep = np.ones(len(data), dtype=bool)
-    orbit_combinations = list(set(itertools.combinations(possible_rejects, int(n_additional_reject))))
-    #
     residuals_to_keep = np.ones(len(data), dtype=bool)
     residuals_to_keep[resid_reject_idx] = False
 
@@ -554,7 +552,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     # do those in 10,000 orbit chunks in memory and gain a factor of 10,000 speed up.
     candidate_orbit_rejects = []
     candidate_orbit_chisquared_partials = []
-    for orbit_to_reject in orbit_combinations:
+    for orbit_to_reject in itertools.combinations(possible_rejects, int(n_additional_reject)):
         orbits_to_keep[list(orbit_to_reject)] = False
         # now we want to try a variety of deleting orbits and sliding the other orbits
         # upward to fill the vacancy.
