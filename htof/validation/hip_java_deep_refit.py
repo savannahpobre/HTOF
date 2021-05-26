@@ -1,6 +1,7 @@
 import numpy as np
 from argparse import ArgumentParser
 import copy
+from scipy.special import comb as nchoosek
 from htof.parse import partitions, HipparcosRereductionJavaTool
 
 
@@ -18,11 +19,7 @@ class Engine(object):
         self.mask_rejected_resid = mask_rejected_resid
 
     def __call__(self, rejects_from_each_orbit):
-        if np.any(rejects_from_each_orbit > self.orbit_multiplicity):
-            # ignore any trials of rejects that put e.g. 10 rejects into an orbit with only 4 observations.
-            # consider moving this out of this call loop..
-            return [[0], 1000]
-        end_index = self.orbit_index + self.orbit_multiplicity - np.array(rejects_from_each_orbit)
+        end_index = self.orbit_index + self.orbit_multiplicity - rejects_from_each_orbit
         for s, e in zip(self.orbit_index, end_index):
             self.orbits_to_keep[s:e] = True
         # now we want to try a variety of deleting orbits and sliding the other orbits
@@ -61,8 +58,13 @@ def find_epochs_to_reject_java_large_parallelized(data, n_additional_reject, orb
     mask_rejected_resid = (data.along_scan_errs.values > 0).astype(bool)[residuals_to_keep]
     _orbit_factors = np.array([sin_scan, cos_scan, dt * sin_scan, dt * cos_scan]).T
 
-    trials = [i for i in partitions(n_additional_reject, num_unique_orbits)]  # note that converting this to a list is
-    # going to eat memory for breakfast
+    trials = []
+    # restrict to trial sets of orbit rejections that are viable.
+    for rejects_from_each_orbit in partitions(n_additional_reject, num_unique_orbits):
+        if np.all(rejects_from_each_orbit <= orbit_multiplicity):
+            trials.append(np.array(rejects_from_each_orbit, dtype=np.uint8))
+    trials = np.array(trials, dtype=np.uint8)
+    print(len(trials))
     try:
         pool = Pool(ncore)
         engine = Engine(orbit_index, orbit_multiplicity,
@@ -119,11 +121,13 @@ if __name__ == "__main__":
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         orbit_number = raw_iad[0].values
         correct_id = header.iloc[0][0]
-        for i in range(10):
-            t = time.clock()
-            additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
-                                                                                       orbit_number, args.cores)
-            print(time.clock()- t)
+        norb = len(np.unique(orbit_number))
+        comb = nchoosek(norb + n_additional_reject - 1, n_additional_reject - 1)
+        print(norb, n_additional_reject)
+        memory_size = comb * 8
+        print(memory_size/1e6)
+        additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
+                                                                                   orbit_number, args.cores)
         f = open(f"{str(int(correct_id))}.txt", "w")
         f.write(str(additional_rejected_epochs))
         f.close()
