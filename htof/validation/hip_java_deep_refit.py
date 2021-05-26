@@ -102,6 +102,7 @@ if __name__ == "__main__":
                              'filepath problems before running the full test on all ~100000 sources.')
 
     args = parser.parse_args()
+    import time
 
     hip_ids = np.genfromtxt(args.inlist).flatten().astype(int)
     if args.debug:
@@ -118,8 +119,11 @@ if __name__ == "__main__":
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         orbit_number = raw_iad[0].values
         correct_id = header.iloc[0][0]
-        additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
-                                                                                   orbit_number, args.cores)
+        for i in range(10):
+            t = time.clock()
+            additional_rejected_epochs = find_epochs_to_reject_java_large_parallelized(data, n_additional_reject,
+                                                                                       orbit_number, args.cores)
+            print(time.clock()- t)
         f = open(f"{str(int(correct_id))}.txt", "w")
         f.write(str(additional_rejected_epochs))
         f.close()
