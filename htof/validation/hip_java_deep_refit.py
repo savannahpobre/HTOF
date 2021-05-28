@@ -14,7 +14,7 @@ def calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_mult
     orbit_factors = _orbit_factors[orbits_to_keep]
     # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
     # shifted orbits, and calculates the chi2 partials vector per orbit:
-    chi2_vector = (2 * residual_factors * orbit_factors)
+    chi2_vector = (residual_factors * orbit_factors)
     # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
     sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
     # reset for the next loop:
@@ -47,13 +47,14 @@ def find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number):
     candidate_orbit_chisquared_partials = []
 
     residual_factors_transpose = residual_factors.reshape(-1,1)
+    residual_factors_transpose_scaled = residual_factors_transpose * 2
 
     for rejects_from_each_orbit in partitions(n_additional_reject, num_unique_orbits):
         if np.any(rejects_from_each_orbit > orbit_multiplicity):
             # ignore any trials of rejects that put e.g. 10 rejects into an orbit with only 4 observations.
             continue
         rejects_from_each_orbit, sum_chisquared_partials = calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_multiplicity, orbits_to_keep, _orbit_factors,
-             residual_factors_transpose, mask_rejected_resid)
+             residual_factors_transpose_scaled, mask_rejected_resid)
         if sum_chisquared_partials > 1:
             # if the solution is bad, don't even save it. This will reduce memory usage.
             continue
