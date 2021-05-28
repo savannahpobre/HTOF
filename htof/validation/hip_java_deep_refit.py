@@ -4,7 +4,7 @@ from htof.parse import partitions, HipparcosRereductionJavaTool
 
 
 def calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_multiplicity, orbits_to_keep, _orbit_factors,
-             residual_factors, mask_rejected_resid):
+             residual_factors_transpose_scaled, mask_rejected_resid):
     end_index = orbit_index + orbit_multiplicity - rejects_from_each_orbit
     for s, e in zip(orbit_index, end_index):
         orbits_to_keep[s:e] = True
@@ -14,7 +14,7 @@ def calculate_sum_chi2_partials(rejects_from_each_orbit, orbit_index, orbit_mult
     orbit_factors = _orbit_factors[orbits_to_keep]
     # this simultaneously deletes one of the residuals, assigns the remaining residuals to the
     # shifted orbits, and calculates the chi2 partials vector per orbit:
-    chi2_vector = (residual_factors * orbit_factors)
+    chi2_vector = (residual_factors_transpose_scaled * orbit_factors)
     # sum the square of the chi2 partials to decide for whether or not it is a stationary point.
     sum_chisquared_partials = np.sqrt(np.sum(np.sum(chi2_vector[mask_rejected_resid], axis=0) ** 2))
     # reset for the next loop:

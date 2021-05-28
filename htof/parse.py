@@ -509,7 +509,8 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
         candidate_row_chisquared_partials_pern.append(np.min(candidate_row_chisquared_partials))
     # see if any of the rejections are viable (i.e., check if this IAD is messed up in an unrepairable way)
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
-        warnings.warn("Attempted to find which rows to reject, but the chisquared partials are larger than 0.5. "
+        warnings.warn(f"Attempted to find which rows to reject, but the chisquared partials "
+                      f"are larger than {chi2_thresh}. "
                       "This is likely a bugged source. Aborting rejection routine. ", UserWarning)
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
     # exclude any rejections that do not yield stationary points.
