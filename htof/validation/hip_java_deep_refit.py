@@ -98,7 +98,7 @@ if __name__ == "__main__":
         data = HipparcosRereductionJavaTool()
         # get info on the IAD without doing any rejection:
         header, raw_iad = data.parse(star_id=hip_id, intermediate_data_directory=args.iad_directory,
-                                     attempt_adhoc_rejection=False, reject_known=False, error_inflate=False)
+                                     attempt_adhoc_rejection=False, reject_known=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         orbit_number = raw_iad[0].values

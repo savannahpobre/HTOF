@@ -386,11 +386,10 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                          epoch=epoch, residuals=residuals,
                                                          inverse_covariance_matrix=inverse_covariance_matrix)
 
-
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
-                                                                           error_inflate=True, header_rows=5,
+                                                                           error_inflate=False, header_rows=5,
                                                                            attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = int(n_transits) - int(n_expected_transits)

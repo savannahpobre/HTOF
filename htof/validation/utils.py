@@ -113,7 +113,7 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
 
 def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
     data = HipparcosRereductionJavaTool()
-    data.parse(star_id=hip_id, intermediate_data_directory=iad_dir, error_inflate=False)
+    data.parse(star_id=hip_id, intermediate_data_directory=iad_dir)
     fname = glob(os.path.join(iad_dir, '**/', "H" + str(hip_id).zfill(6) + ".csv"))[0]
 
     plx, cntr_RA, cntr_Dec, pmRA, pmDec, soltype = get_cat_values_hip21(fname)
