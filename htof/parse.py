@@ -11,6 +11,7 @@
 
 import numpy as np
 import pandas as pd
+from scipy import stats, special
 import warnings
 from ast import literal_eval
 import os
@@ -388,9 +389,8 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
-        # TODO set error error_inflate=True when the F2 value is available in the headers of 2.1 data.
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
-                                                                           error_inflate=False, header_rows=5,
+                                                                           error_inflate=True, header_rows=5,
                                                                            attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
@@ -431,9 +431,9 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
             total_rejected_epochs += len(epochs_to_reject)
         if error_inflate:
-            f2_vals = np.load(pkg_resources.resource_filename('htof', 'data/hip2p1f2vals.npz'))['arr_0']
-            f2 = f2_vals[:, 1][f2_vals[:, 0] == int(header.iloc[0][0])]  # get the f2 value for the hip id.
             nparam = get_nparam(header.iloc[0][4])
+            Q = np.sum((self.residuals/self.along_scan_errs)**2)
+            f2 = special.erfcinv(stats.chi2.sf(Q, n_transits - total_rejected_epochs - nparam)*2)*np.sqrt(2)
             self.along_scan_errs *= self.error_inflation_factor(n_transits - total_rejected_epochs, nparam, f2)
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
