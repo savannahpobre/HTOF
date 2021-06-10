@@ -125,7 +125,7 @@ class DataParser(object):
         all_epoch = pd.concat([pd.DataFrame(self.julian_day_epoch()), pd.DataFrame(other.julian_day_epoch())])
         all_residuals = pd.concat([self.residuals, other.residuals])
         all_along_scan_errs = pd.concat([self.along_scan_errs, other.along_scan_errs])
-
+        # TODO: add parallax factors. Tricky because gaia missions do not have them.
         all_inverse_covariance_matrix = safe_concatenate(self.inverse_covariance_matrix,
                                                          other.inverse_covariance_matrix)
 
@@ -415,7 +415,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 else:
                     warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} bugged epochs, and'
                                   f' the correct epochs to reject are not in the known list '
-                                  f'(epoch_reject_shortlist.csv)', UserWarning)
+                                  f'(epoch_reject_shortlist.csv)', UserWarning)    # pragma: no cover
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
                           "You are foregoing the write out bug "
@@ -510,7 +510,7 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
         warnings.warn(f"Attempted to find which rows to reject, but the chisquared partials "
                       f"are larger than {chi2_thresh}. "
-                      "This is likely a bugged source. Aborting rejection routine. ", UserWarning)
+                      "This is likely a bugged source. Aborting rejection routine. ", UserWarning)    # pragma: no cover
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
     # exclude any rejections that do not yield stationary points.
     viable_rejections = np.where(np.array(candidate_row_chisquared_partials_pern) < chi2_thresh)[0]
@@ -570,7 +570,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
         warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-                      "likely more additional rejected epochs than htof can handle.", UserWarning)
+                      "likely more additional rejected epochs than htof can handle.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
@@ -628,7 +628,7 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject, orbi
     orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
         warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-                      "likely more additional rejected epochs than htof can handle.", UserWarning)
+                      "likely more additional rejected epochs than htof can handle.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}

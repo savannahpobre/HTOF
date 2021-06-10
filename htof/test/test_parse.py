@@ -234,6 +234,11 @@ class TestDataParser:
         assert len(DataParser()) == 0
         assert len(DataParser(epoch=pd.DataFrame(np.arange(4)))) == 4
 
+    def test_access_rejected_epochs(self):
+        data = HipparcosRereductionDVDBook()
+        data._rejected_epochs = 'test'
+        assert data.rejected_epochs == 'test'
+
 
 def test_convert_dates_to_jd():
     epoch = pd.DataFrame(data=[1990.0, 1990.25], index=[5, 6])

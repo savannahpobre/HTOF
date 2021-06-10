@@ -205,13 +205,3 @@ def fast_fit_line(chi2mat, ra_solution_vecs, dec_solution_vecs, ra_vs_epoch, dec
 
 def unpack_elements_of_matrix(matrix):
     return matrix.flatten()
-
-
-def normalize(coordinates, domain):
-    """
-    :param coordinates: ndarray
-    :param domain: ndarray. max and min value of input coordinates.
-    :return: coordinates normalized to run from -1 to 1.
-    """
-    coordinates = 2. * (coordinates - min(domain))/(max(domain) - min(domain)) - 1.
-    return coordinates
