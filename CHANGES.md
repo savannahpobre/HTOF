@@ -7,6 +7,8 @@ that have the Hip2 file-write error. Note that this is not perfect, there are so
   the dvd still has the same bug, it is just not easily correctable).
 - Updated the flagged source list (hip2_javatool_flagged.txt).
 - Parallax factors from the IAD are now loaded on data.parse()
+- Updated parse to use the new version of the java tool IAD. Old versions of the java
+tool IAD will not work.
 
 0.3.5 (2021-04-19)
 ------------------
