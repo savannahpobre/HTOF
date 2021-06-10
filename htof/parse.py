@@ -295,7 +295,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         :param: star_id:
         :param: intermediate_data_directory:
         :param: error_inflate: True if the along-scan errors are to be corrected by the inflation factor
-        according to equation B.1 of D. Michalik et al. 2014. Only turn this off for tests, or if the parameters
+        according to Appendix B of D. Michalik et al. 2014. Only turn this off for tests, or if the parameters
         required to compute the error inflation are unavailable.
         :param: header_rows: int.
         :return:
@@ -389,9 +389,9 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
         header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
-                                                                           error_inflate=False, header_rows=5,
+                                                                           error_inflate=False, header_rows=6,
                                                                            attempt_adhoc_rejection=False)
-        n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
+        n_transits, n_expected_transits = header.iloc[0][2], header.iloc[1][4]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         max_n_auto_reject = 4
         total_rejected_epochs = 0
@@ -421,7 +421,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                           "You are foregoing the write out bug "
                           "correction for this Java tool source. The IAD will not correspond exactly "
                           "to the best fit solution. ", UserWarning)
-        epochs_to_reject = np.where(self.along_scan_errs < 0)[0] # note that we have to reject
+        epochs_to_reject = np.where(self.along_scan_errs <= 0)[0] # note that we have to reject
         # the epochs with negative along scan errors (the formally known epochs that need to be rejected)
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
         # is important because the write out bug correction shuffles the orbits.
