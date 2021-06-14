@@ -5,8 +5,7 @@ Author: G. Mirek Brandt
 """
 #from numba import jit
 import numpy as np
-import warnings
-from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix, transform_coefficients_to_unnormalized_domain
+from htof.utils.fit_utils import ra_sol_vec, dec_sol_vec, chi2_matrix
 from htof.utils.fit_utils import chisq_of_fit
 
 
@@ -206,13 +205,3 @@ def fast_fit_line(chi2mat, ra_solution_vecs, dec_solution_vecs, ra_vs_epoch, dec
 
 def unpack_elements_of_matrix(matrix):
     return matrix.flatten()
-
-
-def normalize(coordinates, domain):
-    """
-    :param coordinates: ndarray
-    :param domain: ndarray. max and min value of input coordinates.
-    :return: coordinates normalized to run from -1 to 1.
-    """
-    coordinates = 2. * (coordinates - min(domain))/(max(domain) - min(domain)) - 1.
-    return coordinates

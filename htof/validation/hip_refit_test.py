@@ -2,6 +2,7 @@ from htof.validation.utils import refit_hip1_object, refit_hip2_object, load_hip
 from htof.validation.utils import load_hip1_dm_annex, load_hip2_seven_p_annex, load_hip2_nine_p_annex
 import os
 from astropy.table import Table
+import numpy as np
 from argparse import ArgumentParser
 from glob import glob
 
@@ -15,7 +16,7 @@ class Engine(object):
         plx, ra, dec, pm_ra, pm_dec, acc_ra, acc_dec, jerk_ra, jerk_dec = diffs
         return {'hip_id': hip_id, 'diff_ra': ra, 'diff_dec': dec, 'diff_plx': plx, 'diff_pm_ra': pm_ra, 'diff_pm_dec': pm_dec,
                 'soltype': soltype, 'diff_acc_ra': acc_ra, 'diff_acc_dec': acc_dec, 'diff_jerk_ra': jerk_ra, 'diff_jerk_dec': jerk_dec,
-                'chisquared': chisq, 'dxdra0': partials[0], 'dxddec0': partials[1], 'dxdmura': partials[2], 'dxdmudec': partials[3]}
+                'chisquared': chisq, 'dxdparallax': partials[0], 'dxdra0': partials[1], 'dxddec0': partials[2], 'dxdmura': partials[3], 'dxdmudec': partials[4]}
 
 
 class Hip1Engine(Engine):
@@ -24,11 +25,15 @@ class Hip1Engine(Engine):
         self.use_parallax = use_parallax
         self.hip_dm_g = hip_dm_g
 
-    def __call__(self, fname):
-        hip_id = os.path.basename(fname).split('.txt')[0]
+    def __call__(self, hip_id):
         result = refit_hip1_object(self.dirname, hip_id, self.hip_dm_g, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype)
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        # ideally this method shouldn't really be in the engine, but whatever for now.
+        return os.path.basename(fname).split('.txt')[0]
 
 
 class Hip2Engine(Engine):
@@ -39,12 +44,15 @@ class Hip2Engine(Engine):
         self.seven_p_annex = seven_p_annex
         self.nine_p_annex = nine_p_annex
 
-    def __call__(self, fname):
-        hip_id = os.path.basename(fname).split('.d')[0].split('HIP')[1]
+    def __call__(self, hip_id):
         result = refit_hip2_object(self.dirname, hip_id, self.catalog, seven_p_annex=self.seven_p_annex,
                                    nine_p_annex=self.nine_p_annex, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype[-1])
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        return os.path.basename(fname).split('.d')[0].split('HIP')[1]
 
 
 class Hip21Engine(Engine):
@@ -52,11 +60,14 @@ class Hip21Engine(Engine):
         self.dirname = dirname
         self.use_parallax = use_parallax
 
-    def __call__(self, fname):
-        hip_id = os.path.basename(fname).split('.csv')[0].split('H')[1]
+    def __call__(self, hip_id):
         result = refit_hip21_object(self.dirname, hip_id, use_parallax=self.use_parallax)
         soltype = result[4]
         return self.format_result(result, hip_id, soltype[-1])
+
+    @staticmethod
+    def convert_fname_to_hip_id(fname):
+        return os.path.basename(fname).split('.csv')[0].split('H')[1]
 
 
 if __name__ == "__main__":
@@ -71,6 +82,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output-file", required=False, default=None,
                         help="The output filename, with .csv extension. E.g. hip1_refit.csv."
                              "Will default to hip_processid.csv.")
+    parser.add_argument("-i", "--inlist", required=False, default=None,
+                        help=".txt file with the list of sources you want to refit.")
     parser.add_argument("-c", "--cores", required=False, default=1, type=int,
                         help="Number of cores to use. Default is 1.")
     parser.add_argument("--ignore-parallax", required=False, action='store_true', default=False,
@@ -90,7 +103,7 @@ if __name__ == "__main__":
         raise ValueError('Hip 2 selected but no --catalog-path provided.')
 
     if args.output_file is None:
-        output_file = 'hip' + args.hip_reduction + '_refit' + (str)(os.getpid()) + '.csv'
+        output_file = 'hip' + (str)(args.hip_reduction) + '_refit' + (str)(os.getpid()) + '.csv'
     else:
         output_file = args.output_file
     if args.ignore_parallax:
@@ -113,16 +126,25 @@ if __name__ == "__main__":
     else:
         files = glob(os.path.join(args.iad_directory, '**/H*.csv'))
         engine = Hip21Engine
-    # fit a small subset of sources if debugging.
+
+    # convert file names to a list of hip_ids
+    hip_ids = [engine.convert_fname_to_hip_id(fname) for fname in files]
+
+    if args.inlist is not None:
+        # fit a specific set of hip_ids if a list is provided.
+        hip_ids = np.genfromtxt(args.inlist).flatten().astype(int)
     if args.debug:
-        files = files[:500]
-    print('will fit {0} total hip {1} objects'.format(len(files), str(args.hip_reduction)))
+        # fit only a small subset of the desired sources if debugging.
+        hip_ids = hip_ids[:100]
+    hip_ids.sort()
+    #engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
+    print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.
     try:
         pool = Pool(args.cores)
         engine = engine(args.iad_directory, not args.ignore_parallax, **kwargs)
-        data_outputs = pool.map(engine, files)
+        data_outputs = pool.map(engine, hip_ids)
         out = Table(data_outputs)
         out.sort('hip_id')
         out.write(output_file, overwrite=True)

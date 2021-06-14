@@ -34,11 +34,21 @@ while in the root directory of this repo. It can also be installed directly from
 
     pip install git+https://github.com/gmbrandt/htof
 
+Usage
+-----
+
+HTOF has a rich variety of usages. We encourage the reader to consult the examples.ipynb jupyter notebook
+for a set of usage examples (e.g., fitting the standard astrometric model to data, combining astrometric missions).
+However, we also go into a few basic and specific use cases in this readme.
+
 Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
 from either Hipparcos data reduction or Gaia. Gaia requires you to first download a .csv of the
-predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/).
+predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/). In particular, using the 'submit for
+events forecast' feature on the website. One should select the widest range of dates
+possible because \codename automatically restricts the predicted epochs of observations
+to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
 Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
@@ -253,9 +263,14 @@ Flagged Sources
 There are a small number of sources in the original reduction of Hipparcos and the re-reductions (e.g. the DVD version
 of the 2007 re-reduction) that HTOF cannot well refit. These sources should be used cautiously and are listed by HIP ID in
 the files in the htof/data directory, e.g. htof/data/hip1_flagged.txt for the 1997 reduction and
-htof/data/hip2_dvd_flagged.txt for the 2007 re-reduction which came on the DVD accompanying the book. Every source in
-these lists have a difference in the catalog best fit proper motions and the HTOF refit proper motions in excess
-of 0.02 mas/yr in either RA or DEC or both.
+htof/data/hip2_dvd_flagged.txt for the 2007 re-reduction which came on the DVD accompanying the book.
+Every source in these lists have a difference in the catalog best fit proper motions and the HTOF refit proper motions in excess
+of 0.1 mas/yr in either RA or DEC or both.
+There is an additional data corruption in the 2007 DVD version of the IAD, that makes nearly 8000 sources hard to refit.
+One will notice that hip2_dvd_flagged.txt has 7550 items.
+We have corrected this corruption in the Java tool IAD, and so we recommend using this IAD (when it is available).
+By contrast, hip2_Javatool_flagged.txt has only 39 entries. These 39 sources are the only ones that htof cannot handle
+satisfactorially. This list may shrink in the future.
 
 
 Astrometric Gaps

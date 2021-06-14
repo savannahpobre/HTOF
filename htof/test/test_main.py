@@ -40,13 +40,13 @@ def test_parse_and_fit_to_line():
         assert np.isclose(mu_dec, 1)
 
 
-class TestHipReReductionCDFits:
+class TestHipReReductionDVDFits:
     CATALOG = load_hip2_catalog('htof/test/data_for_tests/Hip2/truncated_hip2dvd_Main_Cat.d')
     NINEP = load_hip2_nine_p_annex('htof/test/data_for_tests/Hip2/NineP_Cat.d')
     SEVENP = load_hip2_seven_p_annex('htof/test/data_for_tests/Hip2/SevenP_Cat.d')
 
     @pytest.mark.e2e
-    @pytest.mark.parametrize("hip_id", ['70', '78999', '27321'])
+    @pytest.mark.parametrize("hip_id", ['78999', '27321'])
     def test_Hip2_fit_5p_source(self, hip_id):
         diffs, error_diffs, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2',
                                                                          hip_id, catalog=self.CATALOG, use_parallax=True)
@@ -83,6 +83,24 @@ class TestHip1Fits:
                                                                          use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.02)
 
+
+@pytest.mark.e2e
+def test_parallax_factors():
+    # Hip 27321 parameters from the Hipparcos 1 catalogue via Vizier
+    cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
+    # generate fitter and parse intermediate data
+    astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=1991.25,
+                       central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
+                       central_ra=cntr_ra, central_dec=cntr_dec)
+    # generate ra and dec for each observation.
+    year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
+                  Time(1991.25, format='decimalyear').jyear
+    ra_motion = astro.fitter.parallactic_pertubations['ra_plx']
+    dec_motion = astro.fitter.parallactic_pertubations['dec_plx']
+    # check the parallax factors
+    assert np.allclose(astro.data.parallax_factors.values,
+                       ra_motion * np.sin(astro.data.scan_angle.values) + dec_motion * np.cos(astro.data.scan_angle.values),
+                       atol=0.03)
 
 @pytest.mark.e2e
 def test_Hip1_fit_to_hip27321():

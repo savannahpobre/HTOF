@@ -34,9 +34,13 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})
 
     fit_coeffs, errors, chisq = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
+    parallax_factors = ra_motion * np.sin(data.scan_angle.values) + dec_motion * np.cos(data.scan_angle.values)
+    # technically this could be data.parallax_factors.values, but then we have to deal with
+    # getting the RA and Dec components of that.
     if not use_parallax:
         fit_coeffs = np.hstack([[0], fit_coeffs])
         errors = np.hstack([[0], errors])
+        parallax_factors = np.zeros_like(parallax_factors)
     # pad so coeffs and errors are 9 long.
     errors = np.pad(errors, (0, 9 - len(fit_coeffs)))
     fit_coeffs = np.pad(fit_coeffs, (0, 9 - len(fit_coeffs)))
@@ -45,7 +49,7 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
     cos_scan = np.cos(data.scan_angle.values)
     dt = data.epoch - 1991.25
     chi2_vector = (2 * data.residuals.values / data.along_scan_errs.values ** 2 * np.array(
-        [sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
+        [parallax_factors, sin_scan, cos_scan, dt * sin_scan, dt * cos_scan])).T
     chi2_partials = np.sum(chi2_vector, axis=0) ** 2
     return fit_coeffs, errors, chisq, chi2_partials
 
@@ -78,7 +82,7 @@ def refit_hip1_object(iad_dir, hip_id, hip_dm_g=None, use_parallax=False):
 
         return tuple((diffs, errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = None, nine_p_annex: Table = None, use_parallax=False):
@@ -91,10 +95,10 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
     fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)
     # do the fit for seven/nine parameter fits if we have the 7th and 9th parameters.
     accRA_err, accDec_err, jerkRA_err, jerkDec_err = 0, 0, 0, 0
-    if seven_p_annex is not None and fit_degree >= 2:
+    if seven_p_annex is not None and fit_degree is not None and fit_degree >= 2:
         idx = np.searchsorted(seven_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         accRA_err, accDec_err = seven_p_annex[idx][['acc_ra_err', 'acc_dec_err']]
-    if nine_p_annex is not None and fit_degree == 3:
+    if nine_p_annex is not None and fit_degree is not None and fit_degree == 3:
         idx = np.searchsorted(nine_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         jerkRA_err, jerkDec_err = nine_p_annex[idx][['jerk_ra_err', 'jerk_dec_err']]
     # do the fit
@@ -104,13 +108,13 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
                                                                  use_parallax=use_parallax)
         return tuple((diffs, errors - cat_errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
     data = HipparcosRereductionJavaTool()
     data.parse(star_id=hip_id, intermediate_data_directory=iad_dir)
-    fname = glob(os.path.join(iad_dir, '**/', "H" + hip_id.zfill(6) + ".csv"))[0]
+    fname = glob(os.path.join(iad_dir, '**/', "H" + str(hip_id).zfill(6) + ".csv"))[0]
 
     plx, cntr_RA, cntr_Dec, pmRA, pmDec, soltype = get_cat_values_hip21(fname)
     soltype = soltype.strip()
@@ -121,7 +125,7 @@ def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
                                                                  use_parallax=use_parallax)
         return tuple((diffs, errors, chisq, chi2_partials, soltype))
     else:
-        return [None] * 9, [None] * 9, None, [None] * 4, soltype
+        return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def get_cat_values_hip1(fname):

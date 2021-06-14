@@ -1,3 +1,15 @@
+0.4.0 (2021-04-30)
+------------------
+- Implemented a better data fix for Hip2 java data. This fixes most of the 6400 discrepant sources
+that have the Hip2 file-write error. Note that this is not perfect, there are some minor
+  degeneracies between which epochs to reject. See the note in parse.find_epochs_to_reject()
+- Note that this write-out bug fix does not work on the dvd data (note, 
+  the dvd still has the same bug, it is just not easily correctable).
+- Updated the flagged source list (hip2_javatool_flagged.txt).
+- Parallax factors from the IAD are now loaded on data.parse()
+- Updated parse to use the new version of the java tool IAD. Old versions of the java
+tool IAD will not work.
+
 0.3.5 (2021-04-19)
 ------------------
 - Fixed improper syntax calls to panda etc. so that warnings are silence in python 3.8 and beyond.
