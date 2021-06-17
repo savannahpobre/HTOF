@@ -320,8 +320,8 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.parallax_factors = data[2]
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
-            warnings.warn(f"Print htof is attempting to find the epochs for this DVD IAD that need to be rejected."
-                          f" However if this is a source with the write out bug, then this will fail. Preferably"
+            warnings.warn(f" htof is attempting to find the epochs for this DVD IAD that need to be rejected."
+                          f" However if this is a source with corrupted data, then this will fail. Preferably"
                           f" switch to using the Java Tool data.", UserWarning)
             self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, catalog_f2)
         if error_inflate:
@@ -418,13 +418,13 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                   f'(epoch_reject_shortlist.csv)', UserWarning)    # pragma: no cover
         if not attempt_adhoc_rejection and n_additional_reject > 0:
             warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
-                          "You are foregoing the write out bug "
+                          "You are foregoing the ad-hoc "
                           "correction for this Java tool source. The IAD will not correspond exactly "
                           "to the best fit solution. ", UserWarning)
         epochs_to_reject = np.where(self.along_scan_errs <= 0)[0] # note that we have to reject
         # the epochs with negative along scan errors (the formally known epochs that need to be rejected)
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
-        # is important because the write out bug correction shuffles the orbits.
+        # is important because the ad-hoc correction shuffles the orbits.
         if len(epochs_to_reject) > 0 and reject_known:
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
@@ -470,7 +470,7 @@ def match_filename(paths, star_id):
 
 def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, nparam, catalog_f2):
     # just looks for combinations of orbits within the dvd IAD that yield a stationary point of chisquared.
-    # Note that this does not work for sources with the write out bug.
+    # Note that this does not work for sources with the data corruption.
     chi2_thresh = 1
     possible_rejects = np.arange(len(data))
     min_n_reject = max(floor((percent_rejected - 1) / 100 * n_transits), 0)
@@ -569,8 +569,8 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-                      "likely more additional rejected epochs than htof can handle.", UserWarning)    # pragma: no cover
+        warnings.warn("Attempted to fix the data corruption, but the chisquared partials are "
+                      "larger than 0.5. Treat this source with caution.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
@@ -627,8 +627,8 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject, orbi
         orbits_to_keep[s:e] = True
     orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-                      "likely more additional rejected epochs than htof can handle.", UserWarning)    # pragma: no cover
+        warnings.warn("Attempted to fix the data corruption, but the chisquared partials are larger than 0.5. "
+                      "Treat this source with caution. ", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
