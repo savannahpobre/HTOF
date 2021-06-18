@@ -37,13 +37,14 @@ class DataParser(object):
     as pandas.DataFrame. use .values (e.g. self.epoch.values) to call the ndarray version.
     """
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, parallax_factors=None):
+                 along_scan_errs=None, parallax_factors=None, star_id=None):
         self.scan_angle = pd.Series(scan_angle, dtype=np.float64)
         self._epoch = pd.DataFrame(epoch, dtype=np.float64)
         self.residuals = pd.Series(residuals, dtype=np.float64)
         self.parallax_factors = pd.Series(parallax_factors, dtype=np.float64)
         self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
+        self.star_id = star_id
 
     @staticmethod
     def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
@@ -85,7 +86,8 @@ class DataParser(object):
     def calculate_inverse_covariance_matrices(self, cross_scan_along_scan_var_ratio=np.inf):
         self.inverse_covariance_matrix = calc_inverse_covariance_matrices(self.scan_angle,
                                                                           cross_scan_along_scan_var_ratio=cross_scan_along_scan_var_ratio,
-                                                                          along_scan_errs=self.along_scan_errs)
+                                                                          along_scan_errs=self.along_scan_errs,
+                                                                          star_id=self.star_id)
 
     def write(self, path: str, *args, **kwargs):
         """
@@ -154,6 +156,7 @@ class GaiaData(DataParser):
         self.max_epoch = max_epoch
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
+        self.star_id = star_id
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=0, header='infer', sep=r'\s*,\s*')
         data = self.trim_data(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'],
@@ -200,7 +203,7 @@ class DecimalYearData(DataParser):
 
 
 def calc_inverse_covariance_matrices(scan_angles, cross_scan_along_scan_var_ratio=np.inf,
-                                     along_scan_errs=None):
+                                     along_scan_errs=None, star_id=None):
     """
     :param scan_angles: pandas.DataFrame.
             data frame with scan angles, e.g. as-is from IntermediateDataParser.read_intermediate_data_file.
@@ -214,7 +217,7 @@ def calc_inverse_covariance_matrices(scan_angles, cross_scan_along_scan_var_rati
     if along_scan_errs is None or len(along_scan_errs) == 0:
         along_scan_errs = np.ones_like(scan_angles.values.flatten())
     if np.any(np.isclose(along_scan_errs, 0)):
-        warnings.warn('The IAD of ${star_id} contained an along scan error that '
+        warnings.warn(f'The IAD of {star_id} contained an along scan error that '
                       'is zero. This is unphysical, the observation should '
                       'probably have been marked as rejected. '
                       'In order to compute the inverse covariance matrices for '
@@ -253,6 +256,7 @@ class HipparcosOriginalData(DecimalYearData):
         if (data_choice != 'NDAC') and (data_choice != 'FAST') and (data_choice != 'MERGED')\
                 and (data_choice != 'BOTH'):
             raise ValueError('data choice has to be either NDAC or FAST or MERGED or BOTH.')
+        self.star_id = star_id
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=10, header='infer', sep=r'\s*\|\s*')
         data = self._fix_unnamed_column(data)
@@ -314,6 +318,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         as East of the North equatorial pole. theta = pi / 2 - psi, 
         see Brandt et al. (2021), Section 2.2.2."
         """
+        self.star_id = star_id
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                   skiprows=0, header=None, sep=r'\s+')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
@@ -579,7 +584,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted ad-hoc correction for source {star_id}, but the chisquared partials are "
+        warnings.warn(f"Attempted ad-hoc correction for source {data.star_id}, but the chisquared partials are "
                       "larger than 0.5. There are likely more additional rejected epochs than htof can handle. "
                       "Treat the results of this source with caution.", UserWarning)    # pragma: no cover
 

@@ -123,6 +123,7 @@ class TestHipparcosRereductionJavaTool:
         data.parse(star_id='27321', intermediate_data_directory=self.test_data_directory)
         u = 0.875291  # D. Michalik et al. 2014 Q factor for Hip 27321, calculated by hand
         assert len(data) == 111
+        assert data.star_id == '27321'
         assert np.isclose(data._epoch[0], 1990.0055)
         assert np.isclose(np.sin(data.scan_angle[0]), -0.9050, rtol=.01)
         assert np.isclose(data.along_scan_errs.values[0], 0.80 * u, atol=0.01)
