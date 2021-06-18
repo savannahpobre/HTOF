@@ -330,13 +330,13 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.parallax_factors = data[2]
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
-            warnings.warn( f"For source {star_id}. The DVD IAD does not indicate which observation epochs were "
-                            "rejected for the final solution. htof will attempt to find which epochs to "
-                            "reject in order to reproduce the catalog parameters. However, if this source "
-                            "also has some corrupted residuals (see Brandt et al. 2021, Section 4), then "
-                            "this will fail. We recommend you switch to using the IAD from the Java tool, "
-                            "since that version of the IAD indicates rejected epochs with negative "
-                            "uncertainties.", UserWarning)
+            warnings.warn(f"For source {star_id}. The DVD IAD does not indicate which observation epochs were "
+                           "rejected for the final solution. htof will attempt to find which epochs to "
+                           "reject in order to reproduce the catalog parameters. However, if this source "
+                           "also has some corrupted residuals (see Brandt et al. 2021, Section 4), then "
+                           "this will fail. We recommend you switch to using the IAD from the Java tool, "
+                           "since that version of the IAD indicates rejected epochs with negative "
+                           "uncertainties.", UserWarning)
             self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, catalog_f2)
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
@@ -432,8 +432,8 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                   f'(epoch_reject_shortlist.csv). This happens for sources where it is computationally '
                                   f'infeasible to find an ad-hoc correction.', UserWarning)    # pragma: no cover
         if not attempt_adhoc_rejection and n_additional_reject > 0:
-            warnings.warn(f"attempt_adhoc_rejection = False and {star_id} has {n_additional_reject} discrepant observations. "
-                          "You have disabled the ad-hoc "
+            warnings.warn(f"attempt_adhoc_rejection = False and {star_id} has {n_additional_reject} "
+                          "discrepant observations. You have disabled the ad-hoc "
                           "correction for this Java tool source. The IAD do not correspond "
                           "to the best fit catalog solution. ", UserWarning)
         epochs_to_reject = np.where(self.along_scan_errs <= 0)[0] # note that we have to reject
@@ -525,7 +525,7 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
         warnings.warn(f"Attempted to find which rows to reject, but the chisquared partials "
                       f"are larger than {chi2_thresh}. "
-                      "Source {star_id} is likely a source with corrupted data. Aborting rejection routine. ", UserWarning)    # pragma: no cover
+                      f"Source {data.star_id} is likely a source with corrupted data. Aborting rejection routine. ", UserWarning)    # pragma: no cover
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
     # exclude any rejections that do not yield stationary points.
     viable_rejections = np.where(np.array(candidate_row_chisquared_partials_pern) < chi2_thresh)[0]
