@@ -214,9 +214,12 @@ def calc_inverse_covariance_matrices(scan_angles, cross_scan_along_scan_var_rati
     if along_scan_errs is None or len(along_scan_errs) == 0:
         along_scan_errs = np.ones_like(scan_angles.values.flatten())
     if np.any(np.isclose(along_scan_errs, 0)):
-        warnings.warn('Along scan error found that is zero. This is unphysical. Cannot '
-                      'compute the inverse covariance matrices. Setting this AL error '
-                      'to a large number and continuing.', RuntimeWarning)
+        warnings.warn('The IAD of ${star_id} contained an along scan error that '
+                      'is zero. This is unphysical, the observation should '
+                      'probably have been marked as rejected. '
+                      'In order to compute the inverse covariance matrices for '
+                      'this source we are setting this AL error to a large '
+                      'number (1 arcsec) and continue. ', RuntimeWarning)
         along_scan_errs[np.isclose(along_scan_errs, 0)] = 1000
     icovariance_matrices = []
     icov_matrix_in_scan_basis = np.array([[1, 0],
@@ -304,10 +307,12 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         see also Figure 2.1, section 2.5.1, and section 4.1.2
         NOTE: that the Hipparcos re-reduction book and the figures therein describe the
         scan angle against the north ecliptic pole.
-        NOTE: In the actual intermediate astrometry data on the CD the scan angle
-        is given as east of the north equatorial pole, as for the original
+        NOTE: In the actual intermediate astrometry data on the DVD the scan angle psi
+        is given in the equatorial system. This is similar to the original
         Hipparcos and Gaia (Source: private communication between Daniel
-        Michalik and Floor van Leeuwen, April 2019).
+        Michalik and Floor van Leeuwen, April 2019), which define the scan angle theta
+        as East of the North equatorial pole. theta = pi / 2 - psi, 
+        see Brandt et al. (2021), Section 2.2.2."
         """
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                   skiprows=0, header=None, sep=r'\s+')
@@ -320,9 +325,13 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.parallax_factors = data[2]
         n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
-            warnings.warn(f" htof is attempting to find the epochs for this DVD IAD that need to be rejected."
-                          f" However if this is a source with corrupted data, then this will fail. Preferably"
-                          f" switch to using the Java Tool data.", UserWarning)
+            warnings.warn( f"HIP{star_id}. The DVD IAD does not indicate which observation epochs were "
+                            "rejected for the final solution. htof will attempt to find which epochs to "
+                            "reject in order to reproduce the catalog parameters. However, if this source "
+                            "also has some corrupted residuals (see Brandt et al. 2021, Section 4), then "
+                            "this will fail. We recommend you switch to using the IAD from the Java tool, "
+                            "since that version of the IAD indicates rejected epochs with negative "
+                            "uncertainties.", UserWarning)
             self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, catalog_f2)
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
@@ -340,7 +349,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         The errors are to be scaled by u = Sqrt(Q/v) in equation B.4 of D. Michalik et al. 2014.
         (Title: Joint astrometric solution of Hipparcos and Gaia)
         NOTE: ntr (the number of transits) given in the header of the Hip2 IAD, is not necessarily
-        the number of transits used.
+        the number of transits used in the actual solution.
         """
         num_transits_used = ntr
         nu = num_transits_used - nparam  # equation B.1 of D. Michalik et al. 2014
@@ -413,14 +422,15 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                     self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
                                                        'orbit/scan_angle/time': literal_eval(t['orbit/scan_angle/time'][0])}
                 else:
-                    warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} bugged epochs, and'
-                                  f' the correct epochs to reject are not in the known list '
-                                  f'(epoch_reject_shortlist.csv)', UserWarning)    # pragma: no cover
+                    warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} corrupted epochs than can be '
+                                  f'corrected on-the-fly. The correct epochs to reject are not in our precomputed list '
+                                  f'(epoch_reject_shortlist.csv). This happens for sources where it is computationally '
+                                  f'infeasible to find an ad-hoc correction.', UserWarning)    # pragma: no cover
         if not attempt_adhoc_rejection and n_additional_reject > 0:
-            warnings.warn(f"attempt_adhoc_rejection = False and {star_id} is a bugged source. "
-                          "You are foregoing the ad-hoc "
-                          "correction for this Java tool source. The IAD will not correspond exactly "
-                          "to the best fit solution. ", UserWarning)
+            warnings.warn(f"attempt_adhoc_rejection = False and {star_id} has {n_additional_reject} discrepant observations. "
+                          "You have disabled the ad-hoc "
+                          "correction for this Java tool source. The IAD do not correspond "
+                          "to the best fit catalog solution. ", UserWarning)
         epochs_to_reject = np.where(self.along_scan_errs <= 0)[0] # note that we have to reject
         # the epochs with negative along scan errors (the formally known epochs that need to be rejected)
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
@@ -510,7 +520,7 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
         warnings.warn(f"Attempted to find which rows to reject, but the chisquared partials "
                       f"are larger than {chi2_thresh}. "
-                      "This is likely a bugged source. Aborting rejection routine. ", UserWarning)    # pragma: no cover
+                      "HIP{star_id} is likely a source with corrupted data. Aborting rejection routine. ", UserWarning)    # pragma: no cover
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
     # exclude any rejections that do not yield stationary points.
     viable_rejections = np.where(np.array(candidate_row_chisquared_partials_pern) < chi2_thresh)[0]
@@ -569,8 +579,9 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted to fix the data corruption, but the chisquared partials are "
-                      "larger than 0.5. Treat this source with caution.", UserWarning)    # pragma: no cover
+        warnings.warn("Attempted ad-hoc correction for source {star_id}, but the chisquared partials are "
+                      "larger than 0.5. There are likely more additional rejected epochs than htof can handle. "
+                      "Treat the results of this source with caution.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
