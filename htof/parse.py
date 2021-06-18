@@ -313,20 +313,22 @@ class HipparcosRereductionDVDBook(DecimalYearData):
                                                   skiprows=0, header=None, sep=r'\s+')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=header_rows, header=None, sep=r'\s+')
+        self.star_id = star_id
         self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = data[1] + 1991.25
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
         self.parallax_factors = data[2]
-        n_transits, nparam, catalog_f2, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][6], header.iloc[0][7]
+        self.catalog_f2 = header.iloc[0][6]
+        n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
             warnings.warn(f"Print htof is attempting to find the epochs for this DVD IAD that need to be rejected."
                           f" However if this is a source with the write out bug, then this will fail. Preferably"
                           f" switch to using the Java Tool data.", UserWarning)
-            self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, catalog_f2)
+            self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, self.catalog_f2)
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
-            self.along_scan_errs *= self.error_inflation_factor(n_transits, nparam, catalog_f2)
+            self.along_scan_errs *= self.error_inflation_factor(n_transits, nparam, self.catalog_f2)
         return header, data
 
     @staticmethod
@@ -401,10 +403,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 # and basically just as good. The only draw back is it will find slightly different rows (within the same
                 # orbit) to reject, compared to find_epochs_to_reject_java
                 self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
+                #FIXME: Here we add the additional epochs to be rejected to the total
                 total_rejected_epochs += len(self.additional_rejected_epochs['residual/along_scan_error'])
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
+                #FIXME: But here we are not adding them to the total. Why?
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file that we computed
                 correct_id = header.iloc[0][0]
@@ -412,6 +416,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 if len(t) == 1:
                     self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
                                                        'orbit/scan_angle/time': literal_eval(t['orbit/scan_angle/time'][0])}
+                    # FIXME: And here we aren't either.
                 else:
                     warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} bugged epochs, and'
                                   f' the correct epochs to reject are not in the known list '
@@ -429,11 +434,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
             total_rejected_epochs += len(epochs_to_reject)
+        # compute f2 of the residuals (with ad-hoc correction where applicable)
+        nparam = get_nparam(header.iloc[0][4])
+        Q = np.sum((self.residuals/self.along_scan_errs)**2)
+        self.f2 = special.erfcinv(stats.chi2.sf(Q, n_transits - total_rejected_epochs - nparam)*2)*np.sqrt(2)
         if error_inflate:
-            nparam = get_nparam(header.iloc[0][4])
-            Q = np.sum((self.residuals/self.along_scan_errs)**2)
-            f2 = special.erfcinv(stats.chi2.sf(Q, n_transits - total_rejected_epochs - nparam)*2)*np.sqrt(2)
-            self.along_scan_errs *= self.error_inflation_factor(n_transits - total_rejected_epochs, nparam, f2)
+            self.along_scan_errs *= self.error_inflation_factor(n_transits - total_rejected_epochs, nparam, self.f2)
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
 
