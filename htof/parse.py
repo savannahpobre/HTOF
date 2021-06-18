@@ -523,9 +523,12 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
         candidate_row_chisquared_partials_pern.append(np.min(candidate_row_chisquared_partials))
     # see if any of the rejections are viable (i.e., check if this IAD is messed up in an unrepairable way)
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
-        warnings.warn(f"Attempted to find which rows to reject, but the chisquared partials "
-                      f"are larger than {chi2_thresh}. "
-                      f"Source {data.star_id} is likely a source with corrupted data. Aborting rejection routine. ", UserWarning)    # pragma: no cover
+        warnings.warn(f"Failed to find which observations of this DVD source {data.star_id} "
+                      f"that should have been marked as rejected. "
+                      f"The chi squared partials were larger than {chi2_thresh}. "
+                      f"DVD source {data.star_id} is likely a source with corrupted data. "
+                      f"Aborting rejection routine and using IAD as was "
+                      f"read from the DVD data. ", UserWarning)    # pragma: no cover
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
     # exclude any rejections that do not yield stationary points.
     viable_rejections = np.where(np.array(candidate_row_chisquared_partials_pern) < chi2_thresh)[0]
@@ -584,9 +587,10 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn(f"Attempted ad-hoc correction for source {data.star_id}, but the chisquared partials are "
-                      "larger than 0.5. There are likely more additional rejected epochs than htof can handle. "
-                      "Treat the results of this source with caution.", UserWarning)    # pragma: no cover
+        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.star_id}, "
+                      f"but the chisquared partials are "
+                      "still larger than 0.5. Treat the results of this "
+                      "source with caution.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
@@ -643,8 +647,10 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject, orbi
         orbits_to_keep[s:e] = True
     orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn("Attempted to fix the data corruption, but the chisquared partials are larger than 0.5. "
-                      "Treat this source with caution. ", UserWarning)    # pragma: no cover
+        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.star_id}, "
+                      f"but the chisquared partials are "
+                      "still larger than 0.5. Treat the results of this "
+                      "source with caution.", UserWarning)    # pragma: no cover
 
     return {'residual/along_scan_error': list(resid_reject_idx),
             'orbit/scan_angle/time': list(orbit_reject_idx)}
