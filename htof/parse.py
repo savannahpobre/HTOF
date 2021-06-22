@@ -438,7 +438,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         Q = np.sum((self.residuals/self.along_scan_errs)**2)
         n_transits_final = len(self)
         # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
-        self.calculated_f2 = special.erfcinv(stats.chi2.sf(Q, n_transits_final  - nparam)*2)*np.sqrt(2)
+        self.calculated_f2 = special.erfcinv(stats.chi2.sf(Q, n_transits_final - nparam)*2)*np.sqrt(2)
         # TODO move error_inflate out of parse. Has nothing to do with parsing.
         if error_inflate:
             self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.calculated_f2)
