@@ -281,13 +281,16 @@ class HipparcosOriginalData(DecimalYearData):
 
 class HipparcosRereductionDVDBook(DecimalYearData):
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None):
+                 along_scan_errs=None, catalog_f2=None, calculated_f2=None, catalog_soltype=None):
         super(HipparcosRereductionDVDBook, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                           epoch=epoch, residuals=residuals,
                                                           inverse_covariance_matrix=inverse_covariance_matrix)
         self._additional_rejected_epochs = {}  # epochs that need to be rejected due to the write out bug.
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
+        self.catalog_f2 = catalog_f2
+        self.calculated_f2 = calculated_f2
+        self.catalog_soltype = catalog_soltype  # TODO actually populate
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1,
               attempt_adhoc_rejection=True, **kwargs):
@@ -313,13 +316,13 @@ class HipparcosRereductionDVDBook(DecimalYearData):
                                                   skiprows=0, header=None, sep=r'\s+')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=header_rows, header=None, sep=r'\s+')
-        self.star_id = star_id
         self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = data[1] + 1991.25
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
         self.parallax_factors = data[2]
         self.catalog_f2 = header.iloc[0][6]
+        # TODO need to calculate f2 newly using htof. Like we do in the java tool.
         n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
             warnings.warn(f"Print htof is attempting to find the epochs for this DVD IAD that need to be rejected."
@@ -383,10 +386,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                                  'data/epoch_reject_shortlist.csv'), format='ascii')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None):
+                 along_scan_errs=None, catalog_f2=None, calculated_f2=None, catalog_soltype=None):
         super(HipparcosRereductionJavaTool, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
-                                                         epoch=epoch, residuals=residuals,
-                                                         inverse_covariance_matrix=inverse_covariance_matrix)
+                                                           epoch=epoch, residuals=residuals,
+                                                           inverse_covariance_matrix=inverse_covariance_matrix,
+                                                           catalog_f2=catalog_f2, calculated_f2=calculated_f2,
+                                                           catalog_soltype=catalog_soltype)
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
@@ -396,19 +401,15 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         n_transits, n_expected_transits = header.iloc[0][2], header.iloc[1][4]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         max_n_auto_reject = 4
-        total_rejected_epochs = 0
         if attempt_adhoc_rejection:
             if 3 >= n_additional_reject > 0:
                 # Note: you could use find_epochs_to_reject_java_large here and it would be faster for n_additional_reject=3
                 # and basically just as good. The only draw back is it will find slightly different rows (within the same
                 # orbit) to reject, compared to find_epochs_to_reject_java
                 self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
-                #FIXME: Here we add the additional epochs to be rejected to the total
-                total_rejected_epochs += len(self.additional_rejected_epochs['residual/along_scan_error'])
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
-                #FIXME: But here we are not adding them to the total. Why?
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file that we computed
                 correct_id = header.iloc[0][0]
@@ -416,7 +417,6 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 if len(t) == 1:
                     self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
                                                        'orbit/scan_angle/time': literal_eval(t['orbit/scan_angle/time'][0])}
-                    # FIXME: And here we aren't either.
                 else:
                     warnings.warn(f'Cannot fix {star_id}. It has more than {max_n_auto_reject} bugged epochs, and'
                                   f' the correct epochs to reject are not in the known list '
@@ -433,13 +433,15 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         if len(epochs_to_reject) > 0 and reject_known:
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
-            total_rejected_epochs += len(epochs_to_reject)
         # compute f2 of the residuals (with ad-hoc correction where applicable)
         nparam = get_nparam(header.iloc[0][4])
         Q = np.sum((self.residuals/self.along_scan_errs)**2)
-        self.f2 = special.erfcinv(stats.chi2.sf(Q, n_transits - total_rejected_epochs - nparam)*2)*np.sqrt(2)
+        n_transits_final = len(self)
+        # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
+        self.calculated_f2 = special.erfcinv(stats.chi2.sf(Q, n_transits_final  - nparam)*2)*np.sqrt(2)
+        # TODO move error_inflate out of parse. Has nothing to do with parsing.
         if error_inflate:
-            self.along_scan_errs *= self.error_inflation_factor(n_transits - total_rejected_epochs, nparam, self.f2)
+            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.calculated_f2)
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
 
