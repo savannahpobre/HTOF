@@ -4,7 +4,8 @@ from astropy.io import ascii
 from htof.parse import HipparcosRereductionJavaTool
 
 # Directory containing the residual records corresponding to the Java tool data
-test_data_directory = os.path.join(os.getcwd(), '/home/dmichalik/HIPPARCOS_REREDUCTION/DATASETS/ASCII_res')
+# Redirect this to the directory containing the IAD of all (6617) sources
+test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip21')
 
 # Read list of the 6617 discrepant sources discussed in Brandt et al. 2021, Section 4
 discrepant = ascii.read("htof/data/hip21_java_nobs_discrepant.txt", names=["HIP", "diffNobs"])
