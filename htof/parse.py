@@ -37,14 +37,16 @@ class DataParser(object):
     as pandas.DataFrame. use .values (e.g. self.epoch.values) to call the ndarray version.
     """
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, parallax_factors=None, star_id=None):
+                 along_scan_errs=None, parallax_factors=None, meta=None):
+        if meta is None:
+            meta = {}
         self.scan_angle = pd.Series(scan_angle, dtype=np.float64)
         self._epoch = pd.DataFrame(epoch, dtype=np.float64)
         self.residuals = pd.Series(residuals, dtype=np.float64)
         self.parallax_factors = pd.Series(parallax_factors, dtype=np.float64)
         self.along_scan_errs = pd.Series(along_scan_errs, dtype=np.float64)
         self.inverse_covariance_matrix = inverse_covariance_matrix
-        self.star_id = star_id
+        self.meta = meta
 
     @staticmethod
     def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
@@ -87,7 +89,7 @@ class DataParser(object):
         self.inverse_covariance_matrix = calc_inverse_covariance_matrices(self.scan_angle,
                                                                           cross_scan_along_scan_var_ratio=cross_scan_along_scan_var_ratio,
                                                                           along_scan_errs=self.along_scan_errs,
-                                                                          star_id=self.star_id)
+                                                                          star_id=self.meta.get('star_id', None))
 
     def write(self, path: str, *args, **kwargs):
         """
@@ -148,15 +150,15 @@ class GaiaData(DataParser):
     DEAD_TIME_TABLE_NAME = None
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 min_epoch=-np.inf, max_epoch=np.inf, along_scan_errs=None):
+                 min_epoch=-np.inf, max_epoch=np.inf, along_scan_errs=None, meta=None):
         super(GaiaData, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
-                                       epoch=epoch, residuals=residuals,
+                                       epoch=epoch, residuals=residuals, meta=meta,
                                        inverse_covariance_matrix=inverse_covariance_matrix)
         self.min_epoch = min_epoch
         self.max_epoch = max_epoch
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
-        self.star_id = star_id
+        self.meta['star_id'] = star_id
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=0, header='infer', sep=r'\s*,\s*')
         data = self.trim_data(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'],
@@ -190,9 +192,9 @@ class GaiaData(DataParser):
 
 class DecimalYearData(DataParser):
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None):
+                 along_scan_errs=None, meta=None):
         super(DecimalYearData, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
-                                              epoch=epoch, residuals=residuals,
+                                              epoch=epoch, residuals=residuals, meta=meta,
                                               inverse_covariance_matrix=inverse_covariance_matrix)
 
     def parse(self, star_id, intermediate_data_parent_directory, **kwargs):
@@ -256,7 +258,7 @@ class HipparcosOriginalData(DecimalYearData):
         if (data_choice != 'NDAC') and (data_choice != 'FAST') and (data_choice != 'MERGED')\
                 and (data_choice != 'BOTH'):
             raise ValueError('data choice has to be either NDAC or FAST or MERGED or BOTH.')
-        self.star_id = star_id
+        self.meta['star_id'] = star_id
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=10, header='infer', sep=r'\s*\|\s*')
         data = self._fix_unnamed_column(data)
@@ -288,16 +290,13 @@ class HipparcosOriginalData(DecimalYearData):
 
 class HipparcosRereductionDVDBook(DecimalYearData):
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, catalog_f2=None, calculated_f2=None, catalog_soltype=None):
+                 along_scan_errs=None, meta=None):
         super(HipparcosRereductionDVDBook, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
-                                                          epoch=epoch, residuals=residuals,
+                                                          epoch=epoch, residuals=residuals, meta=meta,
                                                           inverse_covariance_matrix=inverse_covariance_matrix)
         self._additional_rejected_epochs = {}  # epochs that need to be rejected due to the write out bug.
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
-        self.catalog_f2 = catalog_f2
-        self.calculated_f2 = calculated_f2
-        self.catalog_soltype = catalog_soltype  # TODO actually populate
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1,
               attempt_adhoc_rejection=True, **kwargs):
@@ -321,7 +320,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         as East of the North equatorial pole. theta = pi / 2 - psi, 
         see Brandt et al. (2021), Section 2.2.2."
         """
-        self.star_id = star_id
+        self.meta['star_id'] = star_id
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                   skiprows=0, header=None, sep=r'\s+')
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
@@ -331,21 +330,22 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.residuals = data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = data[6]  # unit milli-arcseconds (mas)
         self.parallax_factors = data[2]
-        self.catalog_f2 = header.iloc[0][6]
+        self.meta['catalog_f2'] = header.iloc[0][6]
+        self.meta['catalog_soltype'] = header.iloc[0][4]
         # TODO need to calculate f2 newly using htof. Like we do in the java tool.
         n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
         if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
-            warnings.warn(f"For source {self.star_id}. The DVD IAD does not indicate which observation epochs were "
+            warnings.warn(f"For source {self.meta['star_id']}. The DVD IAD does not indicate which observation epochs were "
                            "rejected for the final solution. htof will attempt to find which epochs to "
                            "reject in order to reproduce the catalog parameters. However, if this source "
                            "also has some corrupted residuals (see Brandt et al. 2021, Section 4), then "
                            "this will fail. We recommend you switch to using the IAD from the Java tool, "
                            "since that version of the IAD indicates rejected epochs with negative "
                            "uncertainties.", UserWarning)
-            self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, self.catalog_f2)
+            self.rejected_epochs = find_epochs_to_reject_DVD(self, n_transits, percent_rejected, nparam, self.meta['catalog_f2'])
         if error_inflate:
             # adjust the along scan errors so that the errors on the best fit parameters match the catalog.
-            self.along_scan_errs *= self.error_inflation_factor(n_transits, nparam, self.catalog_f2)
+            self.along_scan_errs *= self.error_inflation_factor(n_transits, nparam, self.meta['catalog_f2'])
         return header, data
 
     @staticmethod
@@ -400,12 +400,11 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                                  'data/epoch_reject_shortlist.csv'), format='ascii')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, catalog_f2=None, calculated_f2=None, catalog_soltype=None):
+                 along_scan_errs=None, meta=None):
         super(HipparcosRereductionJavaTool, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                            epoch=epoch, residuals=residuals,
                                                            inverse_covariance_matrix=inverse_covariance_matrix,
-                                                           catalog_f2=catalog_f2, calculated_f2=calculated_f2,
-                                                           catalog_soltype=catalog_soltype)
+                                                           meta=meta)
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
@@ -414,12 +413,11 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                                            attempt_adhoc_rejection=False)
         n_transits, n_expected_transits = header.iloc[0][2], header.iloc[1][4]
         n_additional_reject = int(n_transits) - int(n_expected_transits)
+        # self.meta['catalog_f2'] = header.iloc[0][6]  # this is already set in HipparcosRereductionDVDBook.parse()
+        # self.meta['catalog_soltype'] = header.iloc[0][4]  # this is already set in HipparcosRereductionDVDBook.parse()
         max_n_auto_reject = 4
         if attempt_adhoc_rejection:
             if 3 >= n_additional_reject > 0:
-                # Note: you could use find_epochs_to_reject_java_large here and it would be faster for n_additional_reject=3
-                # and basically just as good. The only draw back is it will find slightly different rows (within the same
-                # orbit) to reject, compared to find_epochs_to_reject_java
                 self.additional_rejected_epochs = find_epochs_to_reject_java(self, n_additional_reject)
             if max_n_auto_reject >= n_additional_reject > 3:
                 orbit_number = raw_data[0].values
@@ -453,10 +451,10 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         Q = np.sum((self.residuals/self.along_scan_errs)**2)
         n_transits_final = len(self)
         # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
-        self.calculated_f2 = special.erfcinv(stats.chi2.sf(Q, n_transits_final - nparam)*2)*np.sqrt(2)
+        self.meta['calculated_f2'] = special.erfcinv(stats.chi2.sf(Q, n_transits_final - nparam)*2)*np.sqrt(2)
         # TODO move error_inflate out of parse. Has nothing to do with parsing.
         if error_inflate:
-            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.calculated_f2)
+            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['calculated_f2'])
         return header, raw_data
         # setting self.rejected_epochs also rejects the epochs (see the @setter)
 
@@ -464,23 +462,23 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
 class GaiaDR2(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiadr2_08252020.csv')
 
-    def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
+    def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
                  min_epoch=st.GaiaDR2_min_epoch, max_epoch=st.GaiaDR2_max_epoch, along_scan_errs=None):
         super(GaiaDR2, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
-                                      min_epoch=min_epoch, max_epoch=max_epoch)
+                                      min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
 
 
 class GaiaeDR3(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiaedr3_12232020.csv')
 
-    def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
+    def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
                  min_epoch=st.GaiaeDR3_min_epoch, max_epoch=st.GaiaeDR3_max_epoch, along_scan_errs=None):
         super(GaiaeDR3, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
-                                      min_epoch=min_epoch, max_epoch=max_epoch)
+                                      min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
 
 
 def digits_only(x: str):
@@ -531,10 +529,10 @@ def find_epochs_to_reject_DVD(data: DataParser, n_transits, percent_rejected, np
         candidate_row_chisquared_partials_pern.append(np.min(candidate_row_chisquared_partials))
     # see if any of the rejections are viable (i.e., check if this IAD is messed up in an unrepairable way)
     if np.min(candidate_row_chisquared_partials_pern) > chi2_thresh:
-        warnings.warn(f"Failed to find which observations of this DVD source {data.star_id} "
+        warnings.warn(f"Failed to find which observations of this DVD source {data.meta['star_id']} "
                       f"that should have been marked as rejected. "
                       f"The chi squared partials were larger than {chi2_thresh}. "
-                      f"DVD source {data.star_id} is likely a source with corrupted data. "
+                      f"DVD source {data.meta['star_id']} is likely a source with corrupted data. "
                       f"Aborting rejection routine and using IAD as was "
                       f"read from the DVD data. ", UserWarning)    # pragma: no cover
         return {'residual/along_scan_error': [], 'orbit/scan_angle/time': []}
@@ -595,7 +593,7 @@ def find_epochs_to_reject_java(data: DataParser, n_additional_reject):
         orbits_to_keep[list(orbit_to_reject)] = True
     orbit_reject_idx = np.array(candidate_orbit_rejects)[np.argmin(candidate_orbit_chisquared_partials)]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.star_id}, "
+        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.meta['star_id']}, "
                       f"but the chisquared partials are "
                       "still larger than 0.5. Treat the results of this "
                       "source with caution.", UserWarning)    # pragma: no cover
@@ -655,7 +653,7 @@ def find_epochs_to_reject_java_large(data: DataParser, n_additional_reject, orbi
         orbits_to_keep[s:e] = True
     orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.star_id}, "
+        warnings.warn(f"Completed the ad-hoc correction for java tool source {data.meta['star_id']}, "
                       f"but the chisquared partials are "
                       "still larger than 0.5. Treat the results of this "
                       "source with caution.", UserWarning)    # pragma: no cover
