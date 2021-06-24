@@ -21,7 +21,7 @@ data = HipparcosRereductionJavaTool()
 # htof_f2 without ad-hoc correction
 # htof_f2 with ad-hoc correction
 # The difference of the htof_f2 with ad-hoc correction and the catalog f2
-results = np.zeros((numDis,5))
+results = np.zeros((numDis, 5))
 
 hip_ids_to_parse = discrepant[discrepant['diffNobs'] > 0]["HIP"]
 # hip_ids_to_parse = ['27321', '37515'] debug
@@ -29,12 +29,12 @@ for idx, hip_id in enumerate(hip_ids_to_parse):
     results[idx][0] = hip_id
     # parse data without ad-hoc correction, compute and store f2
     data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory, attempt_adhoc_rejection=False)
-    results[idx][1] = data.catalog_f2
-    results[idx][2] = data.calculated_f2
+    results[idx][1] = data.meta['catalog_f2']
+    results[idx][2] = data.meta['calculated_f2']
     # parse data with ad-hoc correction, compute and store f2
     data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory, attempt_adhoc_rejection=True)
-    results[idx][3] = data.calculated_f2
-    results[idx][4] = data.calculated_f2 - data.catalog_f2
+    results[idx][3] = data.meta['calculated_f2']
+    results[idx][4] = data.meta['calculated_f2'] - data.meta['catalog_f2']
 
 # write out results
 output_table = Table(results, names=["HIP", "catalog_f2", "htof_f2_without", "htof_f2", "difference"],
