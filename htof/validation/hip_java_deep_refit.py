@@ -1,5 +1,6 @@
 import numpy as np
 from argparse import ArgumentParser
+import warnings
 from htof.parse import partitions, HipparcosRereductionJavaTool
 
 
@@ -67,8 +68,8 @@ def find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number):
         orbits_to_keep[s:e] = True
     orbit_reject_idx = np.where(~orbits_to_keep)[0]
     if np.min(candidate_orbit_chisquared_partials) > 0.5:
-        print("Attempted to fix the write out bug, but the chisquared partials are larger than 0.5. There are "
-              "likely more additional rejected epochs than htof can handle.", UserWarning)
+        warnings.warn("Attempted to fix the data corruption, but the chisquared partials are larger than 0.5. "
+                      "Treat this source with caution.", UserWarning)
 
     return {'residual/along_scan_error': list(resid_reject_idx), 'orbit/scan_angle/time': list(orbit_reject_idx)}
 
@@ -76,7 +77,7 @@ def find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number):
 if __name__ == "__main__":
     parser = ArgumentParser(description='Script for refitting the java tool IAD. '
                                         'This will output a .txt file for every hip source provided in the inlist'
-                                        ' Each .txt will contain the epochs to reject to fix the write out bug')
+                                        ' Each .txt will contain the epochs to reject to fix the data corruption')
     parser.add_argument("-dir", "--iad-directory", required=True, default=None,
                         help="full path to the intermediate data directory")
     parser.add_argument("-i", "--inlist", required=False, default=None,

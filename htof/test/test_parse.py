@@ -123,6 +123,7 @@ class TestHipparcosRereductionJavaTool:
         data.parse(star_id='27321', intermediate_data_directory=self.test_data_directory)
         u = 0.875291  # D. Michalik et al. 2014 Q factor for Hip 27321, calculated by hand
         assert len(data) == 111
+        assert data.star_id == '27321'
         assert np.isclose(data._epoch[0], 1990.0055)
         assert np.isclose(np.sin(data.scan_angle[0]), -0.9050, rtol=.01)
         assert np.isclose(data.along_scan_errs.values[0], 0.80 * u, atol=0.01)
@@ -130,12 +131,18 @@ class TestHipparcosRereductionJavaTool:
         assert np.isclose(np.sin(data.scan_angle[84]), -0.8083, rtol=.01)
 
     def test_outlier_reject_nowriteoutbug(self):
-        # test that outliers are rejected when it is a source without the write out bug.
+        # test that outliers are rejected when it is a source without the data corruption.
         data = HipparcosRereductionJavaTool()
         data.parse(star_id='27100', intermediate_data_directory=self.test_data_directory)
         assert len(data) == 147 - 2  # num entries - num outliers
         # outliers are marked with negative AL errors. Assert outliers are gone.
         assert np.all(data.along_scan_errs > 0)
+
+    def test_outlier_reject_warning(self):
+        # test that outlier reject throws a warning
+        data = HipparcosRereductionJavaTool()
+        data.parse(star_id='4427', intermediate_data_directory=self.test_data_directory)
+        assert True
 
     @pytest.mark.filterwarnings("ignore:attempt_adhoc_rejection")
     @pytest.mark.parametrize("hip_id,rej_obs", [('39', {'orbit/scan_angle/time': [75],
@@ -159,6 +166,7 @@ class TestHipparcosRereductionJavaTool:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory,
                    attempt_adhoc_rejection=False, reject_known=False)
         nobs_initial = len(data)
+        print(hip_id, nobs_initial)
         num_known_rejects = np.count_nonzero(data.along_scan_errs.values < 0)
         # now run the rejection routine and see how it compares to what we expect:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)

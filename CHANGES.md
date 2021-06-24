@@ -1,3 +1,7 @@
+0.4.1 (2021-06-15)
+------------------
+- Improved warning messages for the adhoc correction.
+
 0.4.0 (2021-04-30)
 ------------------
 - Implemented a better data fix for Hip2 java data. This fixes most of the 6400 discrepant sources
