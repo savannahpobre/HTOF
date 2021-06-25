@@ -1,3 +1,8 @@
+0.4.2 (2021-06-24)
+------------------
+- Introduced a .meta attribute to data parsers. This holds things like the catalog f2 value.
+- Updated examples.ipynb.
+
 0.4.1 (2021-06-15)
 ------------------
 - Improved warning messages for the adhoc correction.
