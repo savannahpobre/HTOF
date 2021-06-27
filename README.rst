@@ -82,6 +82,10 @@ Note that the intermediate data files must be in the same format as the test int
 repository under :code:`htof/test/data_for_tests/`. The best fit parameters have units of mas and mas/day by default.
 The best fit skypath for right ascension is then :code:`ra0 + mu_ra * epochs`.
 
+The Hipparcos Java Tool data parser is meant for the 2014 Java tool data (Java tool first released at
+https://www.cosmos.esa.int/web/hipparcos/java-tools/intermediate-data, in 2014). As of 2021, there has not been an
+update to the Java tool, but there is an update in the works.
+
 By default, the fit is a four-parameter fit: it returns the parameters to the line of best
 fit to the sky path ra_vs_epoch, dec_vs_epoch. If you want a 6 parameter or 8 parameter fit, specify
 fit_degree = 2 or fit_degree = 3 respectively. E.g.
