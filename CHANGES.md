@@ -1,3 +1,9 @@
+1.0.0 (2021-09-01)
+------------------
+- Updated the parsing method to read in the new, final version of the Hip2 Java tool data that
+will be published on the ESA website.
+- Changed the Hip2 (DVD) refit so that the parameter errors are saved, not the parameter differences.
+
 0.4.2 (2021-06-24)
 ------------------
 - Introduced a .meta attribute to data parsers. This holds things like the catalog f2 value.

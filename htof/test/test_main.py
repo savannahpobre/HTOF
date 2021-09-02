@@ -6,7 +6,8 @@ from astropy.time import Time
 
 from htof.parse import GaiaeDR3, GaiaData, HipparcosRereductionDVDBook, HipparcosOriginalData
 from htof.fit import AstrometricFitter
-from htof.validation.utils import refit_hip2_object, refit_hip1_object, load_hip2_catalog, load_hip2_seven_p_annex, load_hip2_nine_p_annex
+from htof.validation.utils import refit_hip2_object, refit_hip21_object, refit_hip1_object, \
+    load_hip2_catalog, load_hip2_seven_p_annex, load_hip2_nine_p_annex
 from htof.validation.utils import load_hip1_dm_annex
 
 from htof.main import Astrometry
@@ -48,20 +49,40 @@ class TestHipReReductionDVDFits:
     @pytest.mark.e2e
     @pytest.mark.parametrize("hip_id", ['78999', '27321'])
     def test_Hip2_fit_5p_source(self, hip_id):
-        diffs, error_diffs, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2',
+        diffs, errors, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2',
                                                                          hip_id, catalog=self.CATALOG, use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.02)
-        assert np.allclose(error_diffs, 0, atol=0.1)
 
     @pytest.mark.e2e
     @pytest.mark.parametrize("hip_id", ['9631', '16468', '25838'])
     def test_Hip2_fit_7p9p_source(self, hip_id):
-        diffs, error_diffs, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2/IntermediateData', hip_id,
+        diffs, errors, chisq, chi2_partials, soltype = refit_hip2_object('htof/test/data_for_tests/Hip2/IntermediateData', hip_id,
                                                                               nine_p_annex=self.NINEP, seven_p_annex=self.SEVENP,
                                                                               catalog=self.CATALOG, use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.02)
-        # TODO test the error differences!
-        #assert np.allclose(error_diffs, 0, atol=0.1)
+
+
+class TestHipparcosRereductionJavaToolFits:
+    @pytest.mark.e2e
+    @pytest.mark.parametrize("hip_id, catalog_errors", [('4427', [0.12, 0.07, 0.07, 0.08, 0.08]),
+                                                        ('17447', [0.48, 0.36, 0.44,  0.44, 0.56])])
+    def test_Hip21_fit_5p_source(self, hip_id, catalog_errors):
+        diffs, errors, chisq, chi2_partials, soltype = refit_hip21_object('htof/test/data_for_tests/Hip21/IntermediateData',
+                                                                         hip_id, use_parallax=True)
+        assert np.allclose(diffs, 0, atol=0.02)
+        assert np.allclose(errors[:5] - np.array(catalog_errors), 0, atol=0.1)
+
+    @pytest.mark.e2e
+    @pytest.mark.parametrize("hip_id,catalog_errors", [('581', [0.82, 0.74, 0.38, 0.80, 0.66, 1.50, 1.04, 0, 0]),
+                                                       ('10160', [0.99, 0.59, 0.81, 1.44, 1.09, 2.24, 2.08, 9.89, 6.77])])
+    def test_Hip21_fit_7p9p_source(self, hip_id, catalog_errors):
+        diffs, errors, chisq, chi2_partials, soltype = refit_hip21_object('htof/test/data_for_tests/Hip21/IntermediateData', hip_id,
+                                                                           use_parallax=True)
+        print(errors.round(2))
+        print(np.array(catalog_errors))
+        assert np.allclose(diffs, 0, atol=0.02)
+        # NOTE: some of the catalog errors do not match exactly here.
+        assert np.allclose(errors, np.array(catalog_errors), rtol=0.2, atol=0.6)
 
 
 class TestHip1Fits:
@@ -74,6 +95,7 @@ class TestHip1Fits:
                                                                          hip_dm_g=self.SEVEN_NINEP_ANNEX,
                                                                          use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.07)
+        # todo input catalog values and test errors.
 
     @pytest.mark.e2e
     @pytest.mark.parametrize("hip_id", ['027321', '004391', '044801', '70000'])
@@ -82,6 +104,7 @@ class TestHip1Fits:
                                                                          hip_dm_g=self.SEVEN_NINEP_ANNEX,
                                                                          use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.02)
+        # todo input catalog values and test errors.
 
 
 @pytest.mark.e2e
