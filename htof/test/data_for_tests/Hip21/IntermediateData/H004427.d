@@ -1,5 +1,7 @@
-# This file contains residual records, extracted from the Hipparcos 2 Interactive Data Access Tool (2014).
-# For more information, see: https://www.cosmos.esa.int/web/hipparcos/interactive-data-access
+# This file contains residual records, extracted from the Hipparcos 2
+# Interactive Data Access Tool (2014). For more information, see:
+# https://www.cosmos.esa.int/web/hipparcos/interactive-data-access
+# https://www.cosmos.esa.int/web/hipparcos/catalogues
 #
 # HIP    MCE    NRES NC isol_n SCE  F2     F1
 # 4427   4417   187  1  5      0    -2.71  3 

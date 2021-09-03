@@ -32,7 +32,6 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
                                use_parallax=use_parallax, fit_degree=fit_degree,
                                parallactic_pertubations={'ra_plx': Angle(ra_motion, 'degree').mas,
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})
-
     fit_coeffs, errors, chisq = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
     parallax_factors = ra_motion * np.sin(data.scan_angle.values) + dec_motion * np.cos(data.scan_angle.values)
     # technically this could be data.parallax_factors.values, but then we have to deal with
@@ -117,8 +116,8 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
 def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
     data = HipparcosRereductionJavaTool()
     header, _ = data.parse(star_id=hip_id, intermediate_data_directory=iad_dir)
-    plx, cntr_RA, cntr_Dec = header['9']['Plx'], Angle(header['9']['RAdeg'], unit='degree'), Angle(header['9']['DEdeg'], unit='degree')
-    pmRA, pmDec, soltype = header['9']['pm_RA'], header['9']['pm_DE'], str(int(header['5']['isol_n']))
+    plx, cntr_RA, cntr_Dec = header['third']['Plx'], Angle(header['third']['RAdeg'], unit='degree'), Angle(header['third']['DEdeg'], unit='degree')
+    pmRA, pmDec, soltype = header['third']['pm_RA'], header['third']['pm_DE'], str(int(header['first']['isol_n']))
     soltype = soltype.strip()
     fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)  # only refit 5, 7, 9 parameter solutions.
     if fit_degree is not None:

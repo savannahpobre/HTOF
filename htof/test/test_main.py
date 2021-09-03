@@ -78,8 +78,6 @@ class TestHipparcosRereductionJavaToolFits:
     def test_Hip21_fit_7p9p_source(self, hip_id, catalog_errors):
         diffs, errors, chisq, chi2_partials, soltype = refit_hip21_object('htof/test/data_for_tests/Hip21/IntermediateData', hip_id,
                                                                            use_parallax=True)
-        print(errors.round(2))
-        print(np.array(catalog_errors))
         assert np.allclose(diffs, 0, atol=0.02)
         # NOTE: some of the catalog errors do not match exactly here.
         assert np.allclose(errors, np.array(catalog_errors), rtol=0.2, atol=0.6)

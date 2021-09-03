@@ -419,33 +419,33 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         fpath = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         with open(fpath) as f:
             lines = f.readlines()
-            hline5 = [float(i) for i in lines[4].split('#')[1].split()]
-            hline7 = [float(i) for i in lines[6].split('#')[1].split()]
-            hline9 = [float(i) if not ('---' in i) else np.nan for i in lines[8].split('#')[1].split()]
-        hline5 = {key: val for key, val in zip(['HIP', 'MCE', 'NRES', 'NC',
-                                                'isol_n', 'SCE', 'F2', 'F1'], hline5)}
-        hline7 = {key: val for key, val in zip(['Hp','B-V','VarAnn','NOB','NR'], hline7)}
-        hline9 = {key: val for key, val in zip(['RAdeg', 'DEdeg', 'Plx', 'pm_RA', 'pm_DE',
+            hline_fst = [float(i) for i in lines[6].split('#')[1].split()]
+            hline_scd = [float(i) for i in lines[8].split('#')[1].split()]
+            hline_trd = [float(i) if not ('---' in i) else np.nan for i in lines[10].split('#')[1].split()]
+        hline_fst = {key: val for key, val in zip(['HIP', 'MCE', 'NRES', 'NC',
+                                                'isol_n', 'SCE', 'F2', 'F1'], hline_fst)}
+        hline_scd = {key: val for key, val in zip(['Hp','B-V','VarAnn','NOB','NR'], hline_scd)}
+        hline_trd = {key: val for key, val in zip(['RAdeg', 'DEdeg', 'Plx', 'pm_RA', 'pm_DE',
                                                 'e_RA', 'e_DE', 'e_Plx', 'e_pmRA', 'e_pmDE', 'dpmRA',
                                                 'dpmDE', 'e_dpmRA', 'e_dpmDE', 'ddpmRA', 'ddpmDE',
                                                 'e_ddpmRA', 'e_ddpmDE', 'upsRA', 'upsDE', 'e_upsRA',
-                                                'e_upsDE', 'var'], hline9)}
-        return {'5': hline5, '7': hline7, '9': hline9}
+                                                'e_upsDE', 'var'], hline_trd)}
+        return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
         self.meta['star_id'] = star_id
         header = self.read_header(star_id, intermediate_data_directory)
         raw_data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                    skiprows=11, header=None, sep=r'\s+')
+                                                    skiprows=13, header=None, sep=r'\s+')
         self.scan_angle = np.arctan2(raw_data[3], raw_data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = raw_data[1] + 1991.25
         self.residuals = raw_data[5]  # unit milli-arcseconds (mas)
         self.along_scan_errs = raw_data[6]  # unit milli-arcseconds (mas)
         self.parallax_factors = raw_data[2]
-        self.meta['catalog_f2'] = header['5']['F2']
-        self.meta['catalog_soltype'] = header['5']['isol_n']
-        n_transits, n_expected_transits = header['5']['NRES'], header['7']['NOB']
+        self.meta['catalog_f2'] = header['first']['F2']
+        self.meta['catalog_soltype'] = header['first']['isol_n']
+        n_transits, n_expected_transits = header['first']['NRES'], header['second']['NOB']
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         # self.meta['catalog_f2'] = header.iloc[0][6]  # this is already set in HipparcosRereductionDVDBook.parse()
         # self.meta['catalog_soltype'] = header.iloc[0][4]  # this is already set in HipparcosRereductionDVDBook.parse()
@@ -458,7 +458,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file that we computed
-                correct_id = header['5']['HIP']
+                correct_id = header['first']['HIP']
                 t = self.EPOCHREJECTLIST[self.EPOCHREJECTLIST['hip_id'] == int(correct_id)]
                 if len(t) == 1:
                     self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
@@ -482,7 +482,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
         # compute f2 of the residuals (with ad-hoc correction where applicable)
-        nparam = get_nparam(str(int(header['5']['isol_n'])))
+        nparam = get_nparam(str(int(header['first']['isol_n'])))
         Q = np.sum((self.residuals/self.along_scan_errs)**2)
         n_transits_final = len(self)
         # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
