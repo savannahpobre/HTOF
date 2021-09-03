@@ -3,6 +3,7 @@
 - Updated the parsing method to read in the new, final version of the Hip2 Java tool data that
 will be published on the ESA website.
 - Changed the Hip2 (DVD) refit so that the parameter errors are saved, not the parameter differences.
+- Changed back the error inflation computation to use the catalog f2 value.
 
 0.4.2 (2021-06-24)
 ------------------
