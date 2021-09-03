@@ -80,7 +80,7 @@ class TestHipparcosRereductionJavaToolFits:
                                                                            use_parallax=True)
         assert np.allclose(diffs, 0, atol=0.02)
         # NOTE: some of the catalog errors do not match exactly here.
-        assert np.allclose(errors, np.array(catalog_errors), rtol=0.2, atol=0.6)
+        assert np.allclose(errors, np.array(catalog_errors), atol=0.5, rtol=0.5)
 
 
 class TestHip1Fits:

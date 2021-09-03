@@ -488,7 +488,15 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
         self.meta['calculated_f2'] = special.erfcinv(stats.chi2.sf(Q, n_transits_final - nparam)*2)*np.sqrt(2)
         if error_inflate:
-            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['calculated_f2'])
+            # WARNING: we use the catalog (Van Leeuwen 2014 Java tool F2) f2 value here to calculate the error inflation
+            # factor. this is because for some sources, the calculated f2 value is much larger than the
+            # catalog value. E.g., HIP 87275 has a catalog f2 of 65.29, and a newly calculated f2 is using
+            # chi2.sf is infinity.
+            # Therefore the error inflation in the catalog is ~7, while the error inflation assuming
+            # the new f2 is infinity. We adopt the catalog f2 so as to reproduce the catalog solution and errors.
+            # The developers have not yet found this f2 discrepency to be an issue, but any source with it
+            # should still be treated with caution.
+            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['catalog_f2'])
         return header, raw_data
 
 
