@@ -84,7 +84,10 @@ The best fit skypath for right ascension is then :code:`ra0 + mu_ra * epochs`.
 
 The Hipparcos Java Tool data parser is meant for the 2014 Java tool data (Java tool first released at
 https://www.cosmos.esa.int/web/hipparcos/java-tools/intermediate-data, in 2014). As of 2021, there has not been an
-update to the Java tool, but there is an update in the works.
+update to the Java tool. The full Java Tool Intermediate Astrometric Data should be downloaded from
+https://www.cosmos.esa.int/web/hipparcos/hipparcos-2 and extracted. One would point any HTOF parser to the
+ResRec_JavaTool folder that contains the H00 etc. subfolders of the individual IAD files. The Java Tool IAD is the preferred
+IAD to use for the Hipparcos 2007 re-reduction.
 
 By default, the fit is a four-parameter fit: it returns the parameters to the line of best
 fit to the sky path ra_vs_epoch, dec_vs_epoch. If you want a 6 parameter or 8 parameter fit, specify
