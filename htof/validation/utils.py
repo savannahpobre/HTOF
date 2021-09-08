@@ -32,7 +32,6 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
                                use_parallax=use_parallax, fit_degree=fit_degree,
                                parallactic_pertubations={'ra_plx': Angle(ra_motion, 'degree').mas,
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})
-
     fit_coeffs, errors, chisq = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
     parallax_factors = ra_motion * np.sin(data.scan_angle.values) + dec_motion * np.cos(data.scan_angle.values)
     # technically this could be data.parallax_factors.values, but then we have to deal with
@@ -67,7 +66,7 @@ def refit_hip1_object(iad_dir, hip_id, hip_dm_g=None, use_parallax=False):
         # do the fit for seven/nine parameter fits if we have the 7th and 9th parameters.
         idx = np.searchsorted(hip_dm_g['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         accRA, accDec, jerkRA, jerkDec = hip_dm_g[idx][['accRA', 'accDec', 'jerkRA', 'jerkDec']]
-        fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype, None)
+        fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype, None)   # only refit 5, 7, 9 parameter solutions.
 
     if fit_degree is not None:
         # abscissa residuals are always with respect to 5p solution for hip1. Do not feed accRA, etc..
@@ -92,8 +91,10 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
     cat_params, cat_errors, soltype = get_cat_values_hip2(hip_id, catalog)
     cntr_RA, cntr_Dec = cat_params[1:3]
     soltype = soltype.strip()
-    fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)
-    # do the fit for seven/nine parameter fits if we have the 7th and 9th parameters.
+    fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)   # only refit 5, 7, 9 parameter solutions.
+    """
+    # get the seventh and ninth parameters from the catalog. Note that we are refitting residuals, so we don't
+    # actually need these. Hence why they are commented out. TODO: delete this stuff.
     accRA_err, accDec_err, jerkRA_err, jerkDec_err = 0, 0, 0, 0
     if seven_p_annex is not None and fit_degree is not None and fit_degree >= 2:
         idx = np.searchsorted(seven_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
@@ -102,25 +103,24 @@ def refit_hip2_object(iad_dir, hip_id, catalog: Table, seven_p_annex: Table = No
         idx = np.searchsorted(nine_p_annex['hip_id'].data, int(hip_id))  # int(hip_id) strips leading zeroes.
         jerkRA_err, jerkDec_err = nine_p_annex[idx][['jerk_ra_err', 'jerk_dec_err']]
     # do the fit
-    cat_errors = np.hstack([cat_errors, [accRA_err, accDec_err, jerkRA_err, jerkDec_err]])
+    #cat_errors = np.hstack([cat_errors, [accRA_err, accDec_err, jerkRA_err, jerkDec_err]])
+    """
     if fit_degree is not None:
         diffs, errors, chisq, chi2_partials = refit_hip_fromdata(data, fit_degree, cntr_RA=cntr_RA, cntr_Dec=cntr_Dec,
                                                                  use_parallax=use_parallax)
-        return tuple((diffs, errors - cat_errors, chisq, chi2_partials, soltype))
+        return tuple((diffs, errors, chisq, chi2_partials, soltype))
     else:
         return [None] * 9, [None] * 9, None, [None] * 5, soltype
 
 
 def refit_hip21_object(iad_dir, hip_id, use_parallax=False):
     data = HipparcosRereductionJavaTool()
-    data.parse(star_id=hip_id, intermediate_data_directory=iad_dir)
-    fname = glob(os.path.join(iad_dir, '**/', "H" + str(hip_id).zfill(6) + ".csv"))[0]
-
-    plx, cntr_RA, cntr_Dec, pmRA, pmDec, soltype = get_cat_values_hip21(fname)
+    header, _ = data.parse(star_id=hip_id, intermediate_data_directory=iad_dir)
+    plx, cntr_RA, cntr_Dec = header['third']['Plx'], Angle(header['third']['RAdeg'], unit='degree'), Angle(header['third']['DEdeg'], unit='degree')
+    pmRA, pmDec, soltype = header['third']['pm_RA'], header['third']['pm_DE'], str(int(header['first']['isol_n']))
     soltype = soltype.strip()
-    fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)
-    # For now, just do the 5 parameter sources of Hip2.
-    if fit_degree == 1:
+    fit_degree = {'5': 1, '7': 2, '9': 3}.get(soltype[-1], None)  # only refit 5, 7, 9 parameter solutions.
+    if fit_degree is not None:
         diffs, errors, chisq, chi2_partials = refit_hip_fromdata(data, fit_degree, cntr_RA=cntr_RA, cntr_Dec=cntr_Dec,
                                                                  use_parallax=use_parallax)
         return tuple((diffs, errors, chisq, chi2_partials, soltype))
@@ -141,21 +141,6 @@ def get_cat_values_hip1(fname):
         except:
             raise UnboundLocalError('could not read pmRA or pmDec from intermediate data of {0}'.format(fname))
     return plx, cntr_RA, cntr_Dec, pmRA, pmDec, sol_type
-
-
-def get_cat_values_hip21(fname):
-    with open(fname) as f:
-        lines = f.readlines()
-        try:
-            pmRA = float(lines[2].split()[3])
-            pmDec = float(lines[2].split()[4])
-            cntr_RA = Angle(float(lines[2].split()[0]), unit='degree')
-            cntr_Dec = Angle(float(lines[2].split()[1]), unit='degree')
-            plx = float(lines[2].split()[2])
-            sol_type = str(lines[0].split()[4])
-        except:
-            raise UnboundLocalError('could not read pmRA or pmDec from intermediate data of {0}'.format(fname))
-    return plx, cntr_RA, cntr_Dec, pmRA, pmDec, str(int(sol_type))
 
 
 def get_cat_values_hip2(hip_id, catalog: Table):

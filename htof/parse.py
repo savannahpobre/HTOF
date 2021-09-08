@@ -49,7 +49,7 @@ class DataParser(object):
         self.meta = meta
 
     @staticmethod
-    def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
+    def get_intermediate_data_file_path(star_id: str, intermediate_data_directory: str):
         star_id = str(star_id)
         filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id + '*')
         filepath_list = glob.glob(filepath, recursive=True)
@@ -71,7 +71,12 @@ class DataParser(object):
         if len(filepath_list) > 1:
             raise FileNotFoundError('Unable to find the correct file among the {0} files containing {1}'
                                     'found in {2}'.format(len(filepath_list), star_id, intermediate_data_directory))
-        data = pd.read_csv(filepath_list[0], sep=sep, skiprows=skiprows, header=header, engine='python')
+        return filepath_list[0]
+
+    @staticmethod
+    def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
+        iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
         return data
 
     @abc.abstractmethod
@@ -298,6 +303,11 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
 
+    def read_header(self, star_id, intermediate_data_directory):
+        header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
+                                                  skiprows=0, header=None, sep=r'\s+')
+        return header
+
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, header_rows=1,
               attempt_adhoc_rejection=True, **kwargs):
         """
@@ -321,8 +331,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         see Brandt et al. (2021), Section 2.2.2."
         """
         self.meta['star_id'] = star_id
-        header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
-                                                  skiprows=0, header=None, sep=r'\s+')
+        header = self.read_header(star_id, intermediate_data_directory)
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                 skiprows=header_rows, header=None, sep=r'\s+')
         self.scan_angle = np.arctan2(data[3], data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
@@ -334,7 +343,7 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.meta['catalog_soltype'] = header.iloc[0][4]
         # TODO need to calculate f2 newly using htof. Like we do in the java tool.
         n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
-        if type(self) is HipparcosRereductionDVDBook and attempt_adhoc_rejection:
+        if attempt_adhoc_rejection:
             warnings.warn(f"For source {self.meta['star_id']}. The DVD IAD does not indicate which observation epochs were "
                            "rejected for the final solution. htof will attempt to find which epochs to "
                            "reject in order to reproduce the catalog parameters. However, if this source "
@@ -406,12 +415,37 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                            inverse_covariance_matrix=inverse_covariance_matrix,
                                                            meta=meta)
 
+    def read_header(self, star_id, intermediate_data_directory):
+        fpath = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        with open(fpath) as f:
+            lines = f.readlines()
+            hline_fst = [float(i) for i in lines[6].split('#')[1].split()]
+            hline_scd = [float(i) for i in lines[8].split('#')[1].split()]
+            hline_trd = [float(i) if not ('---' in i) else np.nan for i in lines[10].split('#')[1].split()]
+        hline_fst = {key: val for key, val in zip(['HIP', 'MCE', 'NRES', 'NC',
+                                                'isol_n', 'SCE', 'F2', 'F1'], hline_fst)}
+        hline_scd = {key: val for key, val in zip(['Hp','B-V','VarAnn','NOB','NR'], hline_scd)}
+        hline_trd = {key: val for key, val in zip(['RAdeg', 'DEdeg', 'Plx', 'pm_RA', 'pm_DE',
+                                                'e_RA', 'e_DE', 'e_Plx', 'e_pmRA', 'e_pmDE', 'dpmRA',
+                                                'dpmDE', 'e_dpmRA', 'e_dpmDE', 'ddpmRA', 'ddpmDE',
+                                                'e_ddpmRA', 'e_ddpmDE', 'upsRA', 'upsDE', 'e_upsRA',
+                                                'e_upsDE', 'var'], hline_trd)}
+        return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
+
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
-        header, raw_data = super(HipparcosRereductionJavaTool, self).parse(star_id, intermediate_data_directory,
-                                                                           error_inflate=False, header_rows=6,
-                                                                           attempt_adhoc_rejection=False)
-        n_transits, n_expected_transits = header.iloc[0][2], header.iloc[1][4]
+        self.meta['star_id'] = star_id
+        header = self.read_header(star_id, intermediate_data_directory)
+        raw_data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
+                                                    skiprows=13, header=None, sep=r'\s+')
+        self.scan_angle = np.arctan2(raw_data[3], raw_data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
+        self._epoch = raw_data[1] + 1991.25
+        self.residuals = raw_data[5]  # unit milli-arcseconds (mas)
+        self.along_scan_errs = raw_data[6]  # unit milli-arcseconds (mas)
+        self.parallax_factors = raw_data[2]
+        self.meta['catalog_f2'] = header['first']['F2']
+        self.meta['catalog_soltype'] = header['first']['isol_n']
+        n_transits, n_expected_transits = header['first']['NRES'], header['second']['NOB']
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         # self.meta['catalog_f2'] = header.iloc[0][6]  # this is already set in HipparcosRereductionDVDBook.parse()
         # self.meta['catalog_soltype'] = header.iloc[0][4]  # this is already set in HipparcosRereductionDVDBook.parse()
@@ -424,7 +458,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                 self.additional_rejected_epochs = find_epochs_to_reject_java_large(self, n_additional_reject, orbit_number)
             if n_additional_reject > max_n_auto_reject:
                 # These take too long to do automatically, pull the epochs to reject from the file that we computed
-                correct_id = header.iloc[0][0]
+                correct_id = header['first']['HIP']
                 t = self.EPOCHREJECTLIST[self.EPOCHREJECTLIST['hip_id'] == int(correct_id)]
                 if len(t) == 1:
                     self.additional_rejected_epochs = {'residual/along_scan_error': literal_eval(t['residual/along_scan_error'][0]),
@@ -444,19 +478,27 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
         # is important because the ad-hoc correction shuffles the orbits.
         if len(epochs_to_reject) > 0 and reject_known:
+            # setting self.rejected_epochs also rejects the epochs (see the @setter)
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
         # compute f2 of the residuals (with ad-hoc correction where applicable)
-        nparam = get_nparam(header.iloc[0][4])
+        nparam = get_nparam(str(int(header['first']['isol_n'])))
         Q = np.sum((self.residuals/self.along_scan_errs)**2)
         n_transits_final = len(self)
         # note that n_transits_final = n_expected_transits - number of indicated rejects (By negative AL errors)
         self.meta['calculated_f2'] = special.erfcinv(stats.chi2.sf(Q, n_transits_final - nparam)*2)*np.sqrt(2)
-        # TODO move error_inflate out of parse. Has nothing to do with parsing.
         if error_inflate:
-            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['calculated_f2'])
+            # WARNING: we use the catalog (Van Leeuwen 2014 Java tool F2) f2 value here to calculate the error inflation
+            # factor. this is because for some sources, the calculated f2 value is much larger than the
+            # catalog value. E.g., HIP 87275 has a catalog f2 of 65.29, and a newly calculated f2 is using
+            # chi2.sf is infinity.
+            # Therefore the error inflation in the catalog is ~7, while the error inflation assuming
+            # the new f2 is infinity. We adopt the catalog f2 so as to reproduce the catalog solution and errors.
+            # The developers have not yet found this f2 discrepency to be an issue, but any source with it
+            # should still be treated with caution.
+            self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['catalog_f2'])
         return header, raw_data
-        # setting self.rejected_epochs also rejects the epochs (see the @setter)
+
 
 
 class GaiaDR2(GaiaData):

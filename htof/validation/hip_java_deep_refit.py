@@ -100,10 +100,10 @@ if __name__ == "__main__":
         # get info on the IAD without doing any rejection:
         header, raw_iad = data.parse(star_id=hip_id, intermediate_data_directory=args.iad_directory,
                                      attempt_adhoc_rejection=False, reject_known=False)
-        n_transits, n_expected_transits = header.iloc[1][4], header.iloc[0][2]
+        n_transits, n_expected_transits = header['first']['NRES'], header['second']['NOB']
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         orbit_number = raw_iad[0].values
-        correct_id = header.iloc[0][0]
+        correct_id = header['first']['HIP']
         additional_rejected_epochs = find_epochs_to_reject_java_largest(data, n_additional_reject, orbit_number)
         f = open(f"{str(int(correct_id))}.txt", "w")
         f.write(str(additional_rejected_epochs))

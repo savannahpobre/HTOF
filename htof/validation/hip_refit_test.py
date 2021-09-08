@@ -67,7 +67,7 @@ class Hip21Engine(Engine):
 
     @staticmethod
     def convert_fname_to_hip_id(fname):
-        return os.path.basename(fname).split('.csv')[0].split('H')[1]
+        return os.path.basename(fname).split('.d')[0].split('H')[1]
 
 
 if __name__ == "__main__":
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         kwargs = {'catalog': load_hip2_catalog(args.catalog_path),
                   'seven_p_annex': load_hip2_seven_p_annex(sevenp_path), 'nine_p_annex': load_hip2_nine_p_annex(ninep_path)}
     else:
-        files = glob(os.path.join(args.iad_directory, '**/H*.csv'))
+        files = glob(os.path.join(args.iad_directory, '**/H*.d'))
         engine = Hip21Engine
 
     # convert file names to a list of hip_ids
@@ -135,9 +135,9 @@ if __name__ == "__main__":
         hip_ids = np.genfromtxt(args.inlist).flatten().astype(int)
     if args.debug:
         # fit only a small subset of the desired sources if debugging.
-        hip_ids = hip_ids[:100]
+        hip_ids = np.concatenate([hip_ids[:100], [93424, 581, 16468, 52599, 394, 37, 2]]).astype(int)
     hip_ids.sort()
-    #engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)
+    engine(args.iad_directory, not args.ignore_parallax, **kwargs)(93424)  # debug to make sure things work
     print('will fit {0} total hip {1} objects'.format(len(hip_ids), str(args.hip_reduction)))
     print('will save output table at', output_file)
     # do the fit.

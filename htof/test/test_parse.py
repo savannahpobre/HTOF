@@ -169,7 +169,6 @@ class TestHipparcosRereductionJavaTool:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory,
                    attempt_adhoc_rejection=False, reject_known=False)
         nobs_initial = len(data)
-        print(hip_id, nobs_initial)
         num_known_rejects = np.count_nonzero(data.along_scan_errs.values < 0)
         # now run the rejection routine and see how it compares to what we expect:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)

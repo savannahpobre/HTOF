@@ -52,7 +52,7 @@ to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
 Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
-are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1` and :code:`Hip2`.
+are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1`, :code:`Hip21`, and :code:`Hip2`.
 The following lines parse the intermediate data and fit a line.
 
 .. code-block:: python
@@ -70,6 +70,22 @@ E.g. :code:`'decimalyear'`, :code:`'jd'` . If :code:`format='decimalyear'`, then
 would have units of mas/year. If :code:`jd` then the output is mas/day. Both Hipparcos and Gaia catalogs list parallaxes
 in milli-arcseconds (mas), and so positional units are always in mas for HTOF.
 
+For Hipparcos, :code:`Hip2` refers to the DVD IAD which is now obsolete. :code:`Hip21` refers to the
+Java Tool Intermediate Astrometric Data (IAD) and best fit parameters. This is the preferred set of
+data to use with the 2007 re-reduction (preferred over the DVD IAD). The Hipparcos Java Tool data parser is meant for
+the 2014 Java tool data (Java tool first released at
+https://www.cosmos.esa.int/web/hipparcos/java-tools/intermediate-data, in 2014). As of 2021, there has not been an
+update to the Java tool. The full Java Tool Intermediate Astrometric Data should be downloaded from
+https://www.cosmos.esa.int/web/hipparcos/hipparcos-2 and extracted (ignore the _MACOSX folder if there is one).
+One would then point any HTOF parser to the ResRec_JavaTool folder that contains the H00 etc. subfolders of the individual IAD files. So:
+
+.. code-block:: python
+
+    from htof.main import Astrometry
+    astro = Astrometry('Hip21', star_id='027321', '/home/user/Downloads/ResRec_JavaTool_2014/ResRec_JavaTool_2014', format='jd')  # parse
+    ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
+
+
 When using Gaia, one should download the largest stretch of GOST times possible (covering at least the eDR3
 timespan, e.g. covering at least the dates BJD 2456892 to BJD 2457902).
 :code:`GaiaeDR3` will select all data corresponding to the eDR3 data interval and exclude
@@ -81,10 +97,6 @@ For Hipparcos 2, the path to the intermediate data would point to :code:`Interme
 Note that the intermediate data files must be in the same format as the test intermediate data files found in this
 repository under :code:`htof/test/data_for_tests/`. The best fit parameters have units of mas and mas/day by default.
 The best fit skypath for right ascension is then :code:`ra0 + mu_ra * epochs`.
-
-The Hipparcos Java Tool data parser is meant for the 2014 Java tool data (Java tool first released at
-https://www.cosmos.esa.int/web/hipparcos/java-tools/intermediate-data, in 2014). As of 2021, there has not been an
-update to the Java tool, but there is an update in the works.
 
 By default, the fit is a four-parameter fit: it returns the parameters to the line of best
 fit to the sky path ra_vs_epoch, dec_vs_epoch. If you want a 6 parameter or 8 parameter fit, specify
