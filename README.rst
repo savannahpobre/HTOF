@@ -41,6 +41,8 @@ HTOF has a rich variety of usages. We encourage the reader to consult the exampl
 for a set of usage examples (e.g., fitting the standard astrometric model to data, combining astrometric missions).
 However, we also go into a few basic and specific use cases in this readme.
 
+If you use HTOF, please cite the zenodo reference (https://doi.org/10.5281/zenodo.4104383) and the source paper (https://arxiv.org/abs/2109.06761)
+
 Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
