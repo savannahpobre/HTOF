@@ -219,9 +219,10 @@ You could modify the along-scan errors (let's say if you were doing a Gaia DR4/D
 .. code-block:: python
 
     from htof.parse import GaiaData
+    import pandas as pd
     data = GaiaData() # GaiaData will load every scan you have in the .csv GOST file
     data.parse(star_id='27321', intermediate_data_directory='htof/test/data_for_tests/GaiaeDR3/IntermediateData')
-    data.along_scan_errs *= 0.220 # set every along scan error to 220 micro arc seconds.
+    data.along_scan_errs = pd.Series(np.ones(len(data), dtype=float) * 0.22) # set every along scan error to 220 micro arc seconds.
     data.calculate_inverse_covariance_matrices()
 
 Then we could go on and do the fit (detailed shortly after this) and we would have an estimate for the
@@ -233,12 +234,12 @@ their processed intermediate data by summing the two class instances as follows:
 
 .. code-block:: python
 
-    from htof.parse import HipparcosOriginalData # or GaiaData or HipparcosReReduction
+    from htof.parse import HipparcosOriginalData, GaiaDR2
     hip = HipparcosOriginalData()
-    hip.parse(star_id='049699', intermediate_data_directory='Hip1/IntermediateData/')
+    hip.parse(star_id='027321', intermediate_data_directory='htof/test/data_for_tests/Hip1/IntermediateData/')
     hip.calculate_inverse_covariance_matrices()
     gaia = GaiaDR2()
-    gaia.parse(star_id='049699', intermediate_data_directory='GaiaDR2/IntermediateData/')
+    gaia.parse(star_id='027321', intermediate_data_directory='htof/test/data_for_tests/GaiaDR2/IntermediateData/')
     gaia.calculate_inverse_covariance_matrices()
 
     data = hip + gaia
@@ -251,11 +252,18 @@ Now to find the best fit astrometric parameters. Given a parsed data object, we 
 
 .. code-block:: python
 
-    fitter = AstrometricFitter(inverse_covariance_matrices=data.inverse_covariance_matrix, epoch_times=data.julian_day_epoch())
-    solution_vector = fitter.fit_line(ra_vs_epoch, dec_vs_epoch)
+    from htof.fit import AstrometricFitter
+    from astropy.time import Time
+    fitter = AstrometricFitter(inverse_covariance_matrices=data.inverse_covariance_matrix,
+                               epoch_times=Time(data.julian_day_epoch(), format='jd').jyear,
+                               central_epoch_dec=2016, # 2016, assuming we are working with gaia edr3 here.
+                               central_epoch_ra=2016,
+                               fit_degree=1,)
+    ra_vs_epoch = dec_vs_epoch = np.zeros(len(data), dtype=float)  # dummy values of zero.
+    solution_vector, errors, chisq = fitter.fit_line(ra_vs_epoch, dec_vs_epoch, return_all=True)
     ra0, dec0, mu_ra, mu_dec = solution_vector
 
-where :code:`ra(mjd) = ra0 + mu_ra * mjd`, and same for declination.
+where :code:`ra(jyear) = ra0 + mu_ra * (jyear - 2016)`, and same for declination.
 
 To fit a line with parallax, we first have to generate the parallactic motion about the central ra and dec
 (i.e., the parallax factors). We do this with the following code.
