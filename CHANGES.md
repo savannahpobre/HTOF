@@ -1,3 +1,8 @@
+1.0.1 (2021-09-01)
+------------------
+- updated docs.
+- Added gaiaEDR3 ephemeris, resolving a bug when using use_parallax=True and gaiaEDR3.
+
 1.0.0 (2021-09-01)
 ------------------
 - Updated the parsing method to read in the new, final version of the Hip2 Java tool data that
