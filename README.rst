@@ -122,7 +122,7 @@ from the catalog (e.g. 2015.5 for GaiaDR2, 2016 for GaiaEDR3, 1991.25 for Hippar
 
     from htof.main import Astrometry
 
-    astro = Astrometry('GaiaDR2', star_id='027321', 'path/to/intermediate_data/', central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
+    astro = Astrometry('GaiaDR2', '027321', 'path/to/intermediate_data/', central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 The format of the central epochs must be specified along with the central epochs. The best fit sky path in right ascension would then be
@@ -138,8 +138,7 @@ One can access the BJD epochs with
 
 .. code-block:: python
 
-    astro.central_epoch_dec
-    astro.central_epoch_ra
+    astro.data.julian_day_epoch()
 
 If you want the standard (1-sigma) errors on the parameters, set :code:`return_all=True` when fitting:
 
@@ -147,7 +146,8 @@ If you want the standard (1-sigma) errors on the parameters, set :code:`return_a
 
     from htof.main import Astrometry
 
-    astro = Astrometry('GaiaDR2', star_id='027321', 'path/to/intermediate_data/', central_epoch_ra=2456892, central_epoch_dec=2456892, format='jd')
+    astro = Astrometry('GaiaDR2', '027321', 'path/to/intermediate_data/',
+                        central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
     coeffs, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
 
 
@@ -209,7 +209,7 @@ I show here how to reproduce a five-parameter fit.
 
     from htof.parse import HipparcosOriginalData # or GaiaData or HipparcosReReduction
     data = HipparcosOriginalData()
-    data.parse(star_id='049699', intermediate_data_directory='Hip1/IntermediateData/')
+    data.parse(star_id='004391', intermediate_data_directory='htof/test/data_for_tests/Hip1/IntermediateData/')
     data.calculate_inverse_covariance_matrices()
 
 data now has a variety of intermediate data products such as the scan angles, the epochs when each
@@ -222,6 +222,7 @@ You could modify the along-scan errors (let's say if you were doing a Gaia DR4/D
 
     from htof.parse import GaiaData
     import pandas as pd
+    import numpy as np
     data = GaiaData() # GaiaData will load every scan you have in the .csv GOST file
     data.parse(star_id='27321', intermediate_data_directory='htof/test/data_for_tests/GaiaeDR3/IntermediateData')
     data.along_scan_errs = pd.Series(np.ones(len(data), dtype=float) * 0.22) # set every along scan error to 220 micro arc seconds.
@@ -272,7 +273,8 @@ To fit a line with parallax, we first have to generate the parallactic motion ab
 
 .. code-block:: python
 
-    from htof.sky_path import earth_ephemeris
+    from htof.sky_path import earth_ephemeris, parallactic_motion
+    # define central_ra, central_dec as astropy.coordinates.Angle objects.
     ra_motion, dec_motion = parallactic_motion(Time(data.julian_day_epoch(), format='jd').jyear,
                                            central_ra.mas, central_dec.mas, 'mas',
                                            1991.25,
@@ -285,7 +287,7 @@ produce a fit which includes parallax. We now do:
 
 .. code-block:: python
 
-    fitter = AstrometricFitter(inverse_covariance_matrices=hip.inverse_covariance_matrix,
+    fitter = AstrometricFitter(inverse_covariance_matrices=data.inverse_covariance_matrix,
                                epoch_times=Time(data.julian_day_epoch(), format='jd').jyear,
                                use_parallax=True,
                                parallactic_pertubations=parallactic_pertubations,
