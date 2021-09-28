@@ -60,7 +60,9 @@ The following lines parse the intermediate data and fit a line.
 .. code-block:: python
 
     from htof.main import Astrometry
-    astro = Astrometry('GaiaDR2', star_id='027321', 'path/to/intermediate_data/', format='jd')  # parse
+    import numpy as np
+    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData', format='jyear')  # parse
+    ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 ra_vs_epoch and dec_vs_epoch are the positions in right ascension and declination of the object.
@@ -107,8 +109,9 @@ fit_degree = 2 or fit_degree = 3 respectively. E.g.
 .. code-block:: python
 
     from htof.main import Astrometry
-    astro = Astrometry('GaiaDR2', star_id='027321', 'path/to/intermediate_data/', format='jd')
-    ra0, dec0, mu_ra, mu_dec, acc_ra, acc_dec = astro.fit(ra_vs_epoch, dec_vs_epoch, fit_degree=2)
+    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData', format='jd',
+                       fit_degree=2)
+    ra0, dec0, mu_ra, mu_dec, acc_ra, acc_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 If fit_degree = 3, then the additional last two parameters would be the jerk in right ascension and declination, respectively.
 The sky path in RA (for instance) should be reconstructed by `ra0 + mu_ra*t + 1/2*acc_ra*t**2` where `t` are the epochs
@@ -122,7 +125,8 @@ from the catalog (e.g. 2015.5 for GaiaDR2, 2016 for GaiaEDR3, 1991.25 for Hippar
 
     from htof.main import Astrometry
 
-    astro = Astrometry('GaiaDR2', '027321', 'path/to/intermediate_data/', central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
+    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData',
+                       central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 The format of the central epochs must be specified along with the central epochs. The best fit sky path in right ascension would then be
@@ -146,13 +150,13 @@ If you want the standard (1-sigma) errors on the parameters, set :code:`return_a
 
     from htof.main import Astrometry
 
-    astro = Astrometry('GaiaDR2', '027321', 'path/to/intermediate_data/',
+    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData',
                         central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
-    coeffs, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    solution_vector, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
 
 
-`errors` is an array the same shape as coeffs, where each entry is the 1-sigma error for the
-parameter at the same location in the coeffs array. For Hip1 and Hip2, HTOF loads in the real
+`errors` is an array the same shape as solution_vector, where each entry is the 1-sigma error for the
+parameter at the same location in the solution_vector array. For Hip1 and Hip2, HTOF loads in the real
 catalog errors and so these parameter error estimates should match those given in the catalog. For Hip2, the
 along scan errors are automatically inflated or deflated in accordance with D. Michalik et al. 2014.
 For Gaia we do not have the error estimates from the GOST tool. The AL errors are set to 1 mas by default and so the
@@ -183,14 +187,16 @@ will be used to calculate the parallax components of the fit. Using beta pic as 
 .. code-block:: python
 
     from htof.main import Astrometry
+    from astropy.coordinates import Angle
     # central ra and dec from the Hip1 catalog
     cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
     # generate fitter and parse intermediate data
-    astro = Astrometry('Hip1', '27321', 'path/to/intermediate_data/', central_epoch_ra=1991.25,
+    astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1/IntermediateData', central_epoch_ra=1991.25,
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
                        central_ra=cntr_ra, central_dec=cntr_dec)
-    coeffs, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
-    parallax, ra0, dec0, mu_ra, mu_dec = coeffs
+    ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
+    solution_vector, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
 
 
 Appendix
@@ -274,9 +280,11 @@ To fit a line with parallax, we first have to generate the parallactic motion ab
 .. code-block:: python
 
     from htof.sky_path import earth_ephemeris, parallactic_motion
+    from astropy.coordinates import Angle
     # define central_ra, central_dec as astropy.coordinates.Angle objects.
+    cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
     ra_motion, dec_motion = parallactic_motion(Time(data.julian_day_epoch(), format='jd').jyear,
-                                           central_ra.mas, central_dec.mas, 'mas',
+                                           cntr_ra.mas, cntr_dec.mas, 'mas',
                                            1991.25,
                                            ephemeris=earth_ephemeris) # earth ephemeris for hipparcos.
     parallactic_pertubations = {'ra_plx': ra_motion, 'dec_plx': dec_motion}
