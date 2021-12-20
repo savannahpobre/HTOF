@@ -1,6 +1,7 @@
 1.0.2 (2021-12-20)
 ------------------
-- Added Python 3.9 and 3.10 to travis testing suite.
+- Added Python 3.9 to travis testing suite. As of writing, python 3.10 testing is
+not available with travis.
 
 1.0.1 (2021-09-01)
 ------------------
