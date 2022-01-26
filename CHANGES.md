@@ -1,8 +1,13 @@
+
+1.0.3 (2022-01-26)
+------------------
+- updated the jupyter examples notebook. Included a central epoch comparison to the Gaia archive.
+
 1.0.2 (2021-12-20)
 ------------------
 - Added Python 3.9 to travis testing suite. As of writing, python 3.10 testing is
-not available with travis. I manually tested that pytest-sv works with python 3.10.1 on
-  my local ubuntu 20.04 machine.
+not available with travis. I manually tested that pytest-sv works with 
+  python 3.10.1 on my local ubuntu 20.04 machine.
 
 1.0.1 (2021-09-01)
 ------------------
