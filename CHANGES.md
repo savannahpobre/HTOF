@@ -1,3 +1,7 @@
+1.0.2 (2022-01-26)
+------------------
+- updated the jupyter examples notebook. Included a central epoch comparison to the Gaia archive.
+
 1.0.1 (2021-09-01)
 ------------------
 - updated docs.
