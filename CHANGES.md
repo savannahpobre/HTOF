@@ -1,3 +1,7 @@
+1.1.0 (2022-03-01)
+------------------
+- Added a new hip2 parser, in special_parse.py, that will add the residual offset and cosmic dispersion of Brandt et al. 2022 
+and output that new IAD.
 
 1.0.3 (2022-01-26)
 ------------------

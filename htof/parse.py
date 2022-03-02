@@ -500,7 +500,6 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         return header, raw_data
 
 
-
 class GaiaDR2(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiadr2_08252020.csv')
 
