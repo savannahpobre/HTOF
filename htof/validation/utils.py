@@ -7,7 +7,6 @@ from htof.sky_path import parallactic_motion, earth_ephemeris
 from astropy import time
 from astropy.coordinates import Angle
 from astropy.table import Table
-from glob import glob
 import os
 import warnings
 import numpy as np
@@ -32,7 +31,7 @@ def refit_hip_fromdata(data: DataParser, fit_degree, cntr_RA=Angle(0, unit='degr
                                use_parallax=use_parallax, fit_degree=fit_degree,
                                parallactic_pertubations={'ra_plx': Angle(ra_motion, 'degree').mas,
                                                          'dec_plx': Angle(dec_motion, 'degree').mas})
-    fit_coeffs, errors, chisq = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
+    fit_coeffs, errors, chisq, refit_residuals = fitter.fit_line(ra_resid.mas, dec_resid.mas, return_all=True)
     parallax_factors = ra_motion * np.sin(data.scan_angle.values) + dec_motion * np.cos(data.scan_angle.values)
     # technically this could be data.parallax_factors.values, but then we have to deal with
     # getting the RA and Dec components of that.

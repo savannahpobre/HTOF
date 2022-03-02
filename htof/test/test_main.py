@@ -9,6 +9,7 @@ from htof.fit import AstrometricFitter
 from htof.validation.utils import refit_hip2_object, refit_hip21_object, refit_hip1_object, \
     load_hip2_catalog, load_hip2_seven_p_annex, load_hip2_nine_p_annex
 from htof.validation.utils import load_hip1_dm_annex
+from htof.special_parse import to_along_scan_basis
 
 from htof.main import Astrometry
 
@@ -132,11 +133,13 @@ def test_Hip1_fit_to_hip27321():
         ra += Angle(astro.data.residuals.values * np.sin(astro.data.scan_angle.values), unit='mas')
         dec += Angle(astro.data.residuals.values * np.cos(astro.data.scan_angle.values), unit='mas')
         #
-        coeffs, errors, chisq_found = astro.fit(ra.mas, dec.mas, return_all=True)
+        coeffs, errors, chisq_found, residuals = astro.fit(ra.mas, dec.mas, return_all=True)
+        residuals = to_along_scan_basis(residuals[:, 0], residuals[:, 1], astro.data.scan_angle.values)
         assert np.isclose(chisq, chisq_found, atol=1E-3)
         assert np.allclose([pmRA, pmDec], np.array([coeffs[3], coeffs[4]]).round(2))
         assert np.isclose(plx, coeffs[0].round(2), atol=0.01)
         assert np.allclose(errors.round(2), np.array([0.51, 0.45, 0.46, 0.53, 0.61]))
+        assert np.allclose(residuals, astro.data.residuals.values, atol=0.02)
 
 
 @pytest.mark.e2e
@@ -162,7 +165,7 @@ def test_Hip1_fit_to_hip44801():
     ra += Angle(astro.data.residuals.values * np.sin(astro.data.scan_angle.values), unit='mas')
     dec += Angle(astro.data.residuals.values * np.cos(astro.data.scan_angle.values), unit='mas')
     #
-    coeffs, errors, chisq_found = astro.fit(ra.mas, dec.mas, return_all=True)
+    coeffs, errors, chisq_found, residuals_found = astro.fit(ra.mas, dec.mas, return_all=True)
     assert np.isclose(chisq, chisq_found, atol=1E-3)
     assert np.allclose([pmRA, pmDec], np.array([coeffs[3], coeffs[4]]).round(2))
     assert np.isclose(plx, coeffs[0].round(2), atol=0.01)
@@ -192,7 +195,7 @@ def test_Hip1_fit_to_hip70000():
     ra += Angle(astro.data.residuals.values * np.sin(astro.data.scan_angle.values), unit='mas')
     dec += Angle(astro.data.residuals.values * np.cos(astro.data.scan_angle.values), unit='mas')
     #
-    coeffs, errors, chisq_found = astro.fit(ra.mas, dec.mas, return_all=True)
+    coeffs, errors, chisq_found, residuals_found = astro.fit(ra.mas, dec.mas, return_all=True)
     assert np.isclose(chisq, chisq_found, atol=1E-3)
     assert np.allclose([pmRA, pmDec], np.array([coeffs[3], coeffs[4]]).round(2))
     assert np.isclose(plx, coeffs[0].round(2), atol=0.01)
@@ -219,7 +222,7 @@ def test_Hip1_fit_to_hip27321_no_parallax():
     ra += Angle(astro.data.residuals.values * np.sin(astro.data.scan_angle.values), unit='mas')
     dec += Angle(astro.data.residuals.values * np.cos(astro.data.scan_angle.values), unit='mas')
     #
-    coeffs, errors, chisq_found = astro.fit(ra.mas, dec.mas, return_all=True)
+    coeffs, errors, chisq_found, residuals_found = astro.fit(ra.mas, dec.mas, return_all=True)
     assert np.isclose(chisq, chisq_found, atol=1E-3)
     assert np.allclose([pmRA, pmDec], np.array([coeffs[2], coeffs[3]]).round(2))
     assert np.allclose(errors.round(2), np.array([0.45, 0.46, 0.53, 0.61]), atol=0.01)

@@ -1,9 +1,19 @@
 import numpy as np
 from astropy.coordinates import Angle
-from htof.special_parse import to_ra_dec_basis, to_along_scan_basis
+from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated
 from htof.main import Astrometry
 import pytest
 
+
+class TestHip2RecalibratedParser:
+    def test_parse_with_no_changes(self):
+        data = Hipparcos2Recalibrated(cosmic_dispersion=0, residual_offset=0)
+        data.parse('27321', 'htof/test/data_for_tests/Hip21/')
+        # todo test that the new residuals are equal to the old residuals.
+
+    def test_parse(self):
+        data = Hipparcos2Recalibrated()
+        data.parse('27321', 'htof/test/data_for_tests/Hip21/')
 
 @pytest.mark.e2e
 class TestParallaxFactors:

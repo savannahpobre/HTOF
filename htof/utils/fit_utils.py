@@ -97,8 +97,8 @@ def chisq_of_fit(coeffs, ra, dec, ra_epochs, dec_epochs, inv_covs, ra_plx=None,
         ra_model += coeffs[0] * ra_plx
         dec_model += coeffs[0] * dec_plx
 
-    modelminusdata = np.hstack([(ra_model - ra).reshape(-1, 1), (dec_model - dec).reshape(-1, 1)])
+    residuals = np.hstack([(ra - ra_model).reshape(-1, 1), (dec - dec_model).reshape(-1, 1)])
     chisquared = 0
     for i in range(len(ra_model)):
-        chisquared += np.matmul(np.matmul(modelminusdata[i], inv_covs[i]), modelminusdata[i])
-    return chisquared
+        chisquared += np.matmul(np.matmul(residuals[i], inv_covs[i]), residuals[i])
+    return chisquared, residuals

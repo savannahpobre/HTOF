@@ -3,6 +3,8 @@ import warnings
 import pkg_resources
 
 from astropy.time import Time
+from astropy.coordinates import Angle
+from scipy import stats, special
 from astropy.table import Table
 from htof.fit import AstrometricFitter
 from htof.parse import HipparcosRereductionJavaTool, DataParser
@@ -60,8 +62,17 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
                                        fit_degree=1,
                                        use_parallax=True,
                                        parallactic_pertubations=parallactic_perturbations)
-
-            # update the header with the new parameters
+            # get residuals in ra and dec.
+            ra = Angle(self.residuals.values * np.sin(self.scan_angle.values), unit='mas')
+            dec = Angle(self.residuals.values * np.cos(self.scan_angle.values), unit='mas')
+            # fit the residuals
+            coeffs, errors, Q, new_residuals = fitter.fit_line(ra.mas, dec.mas, return_all=True)
+            # compute the along-scan residuals
+            new_residuals = to_along_scan_basis(new_residuals[:, 0], new_residuals[:, 1], self.scan_angle.values)
+            # update the header with the new parameters and errors.
+            ntransits, nparam = len(self), 5
+            header['first']['F2'] = special.erfcinv(stats.chi2.sf(Q, ntransits - nparam)*2)*np.sqrt(2)
+            import pdb; pdb.set_trace()
 
             raw_data = None  # because we do not recalibrate the raw data, so to protect the user we delete it.
         return header, raw_data
@@ -76,7 +87,6 @@ def to_ra_dec_basis(value, scan_angle):
     """
     dec_value, ra_value = value * np.cos(scan_angle), value * np.sin(scan_angle)
     return ra_value, dec_value
-    #return parallax_factor*np.sin(scan_angle), parallax_factor*np.cos(scan_angle)
 
 
 def to_along_scan_basis(ra_value, dec_value, scan_angle):
@@ -92,22 +102,3 @@ def to_along_scan_basis(ra_value, dec_value, scan_angle):
     along_scan_value = dec_value * np.cos(scan_angle) + ra_value * np.sin(scan_angle)
     return along_scan_value
 
-
-def calculate_new_residuals(data: DataParser, depoch, dplx, dra, ddec, dmura, dmudec):
-    """
-    Recomputes new along-scan residuals, expressed against a perturbed five-parameter catalog solution. If
-    the catalog parallax is plx, the catalog ra and dec are ra and dec, and the catalog proper motions are mudec and mura,
-    then this function will return new residuals expressed against:
-    [plx + dplx, ra + dra, dec + ddec, mudec + dmudec, mura + dmura]
-
-    :param depoch: the observation epoch in years - 1991.25
-    :param dplx: the change to the catalog parallax in mas (milli-arcseconds)
-    :param dra: the change to the central ra in mas
-    :param ddec: the change to the central dec in mas
-    :param dmura: the change to the proper motion in ra in mas/yr
-    :param dmudec: the change to the proper motion in dec in mas/yr
-    """
-    ra_residuals = data.residuals * np.sin(data.scan_angle) - dra - dmura * depoch
-    dec_residuals = data.residuals * np.cos(data.scan_angle) - ddec - dmudec * depoch
-    new_residuals = to_along_scan_basis(ra_residuals, dec_residuals, data.scan_angle) - dplx * data.parallax_factors
-    return new_residuals

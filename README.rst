@@ -152,12 +152,25 @@ If you want the standard (1-sigma) errors on the parameters, set :code:`return_a
 
     astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData',
                         central_epoch_ra=2015.5, central_epoch_dec=2015.5, format='jyear')
-    solution_vector, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    solution_vector, errors, chisq, residuals = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
 
 
 `errors` is an array the same shape as solution_vector, where each entry is the 1-sigma error for the
-parameter at the same location in the solution_vector array. For Hip1 and Hip2, HTOF loads in the real
-catalog errors and so these parameter error estimates should match those given in the catalog. For Hip2, the
+parameter at the same location in the solution_vector array. `chisq` is the formal chisquared of the
+fit to the data, and `residuals` are the data - model residuals (given as a Nx2 shaped array, where N is the number
+of transits. The first column are the ra residuals and the second are the declination residuals).
+For a simple refit to the catalog IAD, `residuals` (converted to the AL basis) will equal (up to round off)
+the residuals given in the IAD.  One could convert the residuals to the along scan basis by doing:
+
+.. code-block:: python
+
+    from htof.special_parse import to_along_scan_basis
+    residuals = to_along_scan_basis(ra_decresiduals[:, 0], ra_decresiduals[:, 1], astro.data.scan_angle.values)
+    # now residuals will be a one dimensional array of length N (number of transits), giving the residuals along the
+    # scan.
+
+For Hip1 and Hip2, HTOF loads in the real
+catalog errors and so the parameter error estimates (`errors`) should match those given in the catalog. For Hip2, the
 along scan errors are automatically inflated or deflated in accordance with D. Michalik et al. 2014.
 For Gaia we do not have the error estimates from the GOST tool. The AL errors are set to 1 mas by default and so the
 best-fit parameter errors to Gaia will not match those reported by the catalog.
@@ -195,7 +208,7 @@ will be used to calculate the parallax components of the fit. Using beta pic as 
                        central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
                        central_ra=cntr_ra, central_dec=cntr_dec)
     ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
-    solution_vector, errors, chisq = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    solution_vector, errors, chisq, residuals = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
     parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
 
 
@@ -269,7 +282,7 @@ Now to find the best fit astrometric parameters. Given a parsed data object, we 
                                central_epoch_ra=2016,
                                fit_degree=1,)
     ra_vs_epoch = dec_vs_epoch = np.zeros(len(data), dtype=float)  # dummy values of zero.
-    solution_vector, errors, chisq = fitter.fit_line(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    solution_vector, errors, chisq, residuals = fitter.fit_line(ra_vs_epoch, dec_vs_epoch, return_all=True)
     ra0, dec0, mu_ra, mu_dec = solution_vector
 
 where :code:`ra(jyear) = ra0 + mu_ra * (jyear - 2016)`, and same for declination.
