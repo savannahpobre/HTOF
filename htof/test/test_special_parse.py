@@ -55,7 +55,6 @@ class TestHip2RecalibratedParser:
             for hip_id in hip_ids:
                 data = Hipparcos2Recalibrated()
                 data.parse(hip_id, 'htof/test/data_for_tests/Hip21/')
-                tmp_dir = '/home/gmbrandt/Desktop/recaled'
                 outpath = os.path.join(tmp_dir, f'{hip_id}_recalibrated.d')
                 data.write_as_javatool_format(outpath)
 
