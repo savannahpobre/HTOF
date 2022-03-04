@@ -86,10 +86,12 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             """
             ntransits, nparam = len(self), 5
             header['second']['NOB'] = len(self)
-            header['second']['NR'] = 0.0  # because we automatically remove any "flagged as rejected" observations.
-            header['first']['F1'] = 0.0
+            header['second']['NR'] = 0  # because we automatically remove any "flagged as rejected" observations.
+            header['first']['F1'] = 0
             header['first']['NRES'] = len(self)
             header['first']['F2'] = special.erfcinv(stats.chi2.sf(Q, ntransits - nparam)*2)*np.sqrt(2)
+            if np.isfinite(header['first']['F2']):
+                header['first']['F2'] = np.round(header['first']['F2'], 4)
             # update the best fit parameters with the new values
             for i, key, dp, in zip(np.arange(5), ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE'], [2, 8, 8, 2, 2]):
                 header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
@@ -117,6 +119,10 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
         We recommend using the normal .write() format. This method is for users who do not want to adopt the
         htof file format output by the normal .write() format.
         """
+        if self.recalibrated_header is None or self.recalibrated_data is None:
+            warnings.warn('This source was NOT recalibrated, see earlier warnings as to why. Will not save any '
+                          f'output file at {path} because no recalibration was done.')
+            return None
         ks1 = ['HIP', 'MCE', 'NRES', 'NC', 'isol_n', 'SCE', 'F2', 'F1']
         ks2 = ['Hp', 'B-V', 'VarAnn', 'NOB', 'NR']
         ks3 = ['RAdeg', 'DEdeg', 'Plx', 'pm_RA', 'pm_DE', 'e_RA', 'e_DE', 'e_Plx', 'e_pmRA', 'e_pmDE',
@@ -128,10 +134,19 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
         f = open(path, 'r')
         lines = f.readlines()
         for idx, hline, ks in zip([6, 8, 10], ['first', 'second', 'third'], [ks1, ks2, ks3]):
-            matter = "   ".join([str(self.recalibrated_header[hline][key]) for key in ks])
+            matter = "  ".join([str(self.recalibrated_header[hline][key]) for key in ks])
+            if hline == 'third':
+                matter = "  ".join([str(self.recalibrated_header[hline][key]) for key in ks[:3]])
+                matter += "  " + " ".join([" {:<6}".format(self.recalibrated_header[hline][key]) for key in ks[3:]])
             lines[idx] = '# ' + matter + '\n'
-        # TODO replace nans with ---
-        # TODO write out the IAD also.
+            lines[idx] = lines[idx].replace('nan', '---')
+        # populate the IAD entries
+        lines[-1] += '\n'
+        for line in self.recalibrated_data.to_numpy():
+            # fixed width formatting
+            vals_to_write = ["{0: .4f}".format(i) for i in line[1:]]
+            line = '   {0: <5}'.format(int(line[0])) + "  ".join(vals_to_write) + "\n"
+            lines.append(line)
         f = open(path, 'w')
         f.writelines(lines)
         f.close()

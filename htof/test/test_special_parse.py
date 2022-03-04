@@ -3,6 +3,7 @@ from astropy.coordinates import Angle
 from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated, HipparcosRereductionJavaTool
 from htof.main import Astrometry
 import pytest
+from glob import glob
 import os
 import tempfile
 
@@ -47,15 +48,29 @@ class TestHip2RecalibratedParser:
         assert np.allclose(param_errors, comparison_errors, atol=0.01)
 
     @pytest.mark.e2e
-    def test_write_out_recalibrated_data(self):
+    def test_parse_and_write_recalibrated_data(self):
+        hip_ids = [39, 651, 4427, 17447, 21000, 27100, 27321,
+                   37515, 44050, 94046, 94312, 114114]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for hip_id in hip_ids:
+                data = Hipparcos2Recalibrated()
+                data.parse(hip_id, 'htof/test/data_for_tests/Hip21/')
+                tmp_dir = '/home/gmbrandt/Desktop/recaled'
+                outpath = os.path.join(tmp_dir, f'{hip_id}_recalibrated.d')
+                data.write_as_javatool_format(outpath)
+
+    @pytest.mark.e2e
+    def test_write_and_read_recalibrated_data(self):
         data = Hipparcos2Recalibrated()
         data.parse('27321', 'htof/test/data_for_tests/Hip21/')
         with tempfile.TemporaryDirectory() as tmp_dir:
             outpath = os.path.join(tmp_dir, '27321_recalibrated.d')
             data.write_as_javatool_format(outpath)
-            print(outpath)
-            import pdb; pdb.set_trace()
-
+            reloaded_data = HipparcosRereductionJavaTool()
+            reloaded_data.parse('27321', tmp_dir, error_inflate=False, attempt_adhoc_rejection=False, reject_known=False)
+            assert np.allclose(reloaded_data.residuals, data.residuals, atol=0.001)
+            assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.001)
+            assert np.allclose(reloaded_data._iorb, data._iorb)
 
 @pytest.mark.e2e
 class TestParallaxFactors:
