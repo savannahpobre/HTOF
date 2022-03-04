@@ -302,6 +302,9 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self._additional_rejected_epochs = {}  # epochs that need to be rejected due to the write out bug.
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
+        self._cpsi = None
+        self._spsi = None
+        self._iorb = None
 
     def read_header(self, star_id, intermediate_data_directory):
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
@@ -341,7 +344,11 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.parallax_factors = data[2]
         self.meta['catalog_f2'] = header.iloc[0][6]
         self.meta['catalog_soltype'] = header.iloc[0][4]
-        # TODO need to calculate f2 newly using htof. Like we do in the java tool.
+        #
+        self._cpsi = data[3]
+        self._spsi = data[4]
+        self._iorb = data[0]
+
         n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
         if attempt_adhoc_rejection:
             warnings.warn(f"For source {self.meta['star_id']}. The DVD IAD does not indicate which observation epochs were "
@@ -384,7 +391,8 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         not_outlier = np.ones(len(self), dtype=bool)
         np.put(not_outlier, orbits_to_reject, False)
         self._epoch, self.scan_angle = self._epoch[not_outlier], self.scan_angle[not_outlier]
-        self.parallax_factors = self.parallax_factors[not_outlier]
+        self.parallax_factors, self._iorb = self.parallax_factors[not_outlier], self._iorb[not_outlier]
+        self._cpsi, self._spsi = self._cpsi[not_outlier], self._spsi[not_outlier]
         setattr(self, attr_to_set, value)
 
     @property
@@ -445,6 +453,10 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         self.parallax_factors = raw_data[2]
         self.meta['catalog_f2'] = header['first']['F2']
         self.meta['catalog_soltype'] = header['first']['isol_n']
+        #
+        self._cpsi = raw_data[3]
+        self._spsi = raw_data[4]
+        self._iorb = raw_data[0]
         n_transits, n_expected_transits = header['first']['NRES'], header['second']['NOB']
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         # self.meta['catalog_f2'] = header.iloc[0][6]  # this is already set in HipparcosRereductionDVDBook.parse()
@@ -478,7 +490,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
         # is important because the ad-hoc correction shuffles the orbits.
         if len(epochs_to_reject) > 0 and reject_known:
-            # setting self.rejected_epochs also rejects the epochs (see the @setter)
+            # setting self.rejected_epochs also rejects the epochs (see the @rejected_epochs.setter)
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
         # compute f2 of the residuals (with ad-hoc correction where applicable)

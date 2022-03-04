@@ -1,0 +1,13 @@
+# This file contains residual records, extracted from the Hipparcos 2
+# Interactive Data Access Tool (2014), and recalibrated by HTOF (Brandt et al. 2022 a and b)
+# For more information, see: https://www.cosmos.esa.int/web/hipparcos/interactive-data-access
+# https://www.cosmos.esa.int/web/hipparcos/catalogues
+#
+# HIP    MCE    NRES NC isol_n SCE  F2     F1
+# line6
+# Hp      B-V    VarAnn NOB NR
+# line8
+# RAdeg        DEdeg        Plx      pm_RA    pm_DE    e_RA   e_DE   e_Plx  e_pmRA e_pmDE dpmRA  dpmDE  e_dpmRA  e_dpmDE  ddpmRA  ddpmDE  e_ddpmRA  e_ddpmDE  upsRA   upsDE   e_upsRA  e_upsDE  var
+# line10
+#
+# IORB   EPOCH    PARF    CPSI    SPSI     RES   SRES

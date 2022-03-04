@@ -1,19 +1,61 @@
 import numpy as np
 from astropy.coordinates import Angle
-from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated
+from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated, HipparcosRereductionJavaTool
 from htof.main import Astrometry
 import pytest
+import os
+import tempfile
 
 
 class TestHip2RecalibratedParser:
-    def test_parse_with_no_changes(self):
-        data = Hipparcos2Recalibrated(cosmic_dispersion=0, residual_offset=0)
-        data.parse('27321', 'htof/test/data_for_tests/Hip21/')
-        # todo test that the new residuals are equal to the old residuals.
+    def test_parse_residuals_with_no_changes(self):
+        data_recalb = Hipparcos2Recalibrated(cosmic_dispersion=0, residual_offset=0)
+        data_recalb.parse('27321', 'htof/test/data_for_tests/Hip21/')
+        data = HipparcosRereductionJavaTool()
+        data.parse('27321', 'htof/test/data_for_tests/Hip21/', error_inflate=False)
+        # test that the new residuals are equal to the old residuals, within 0.01 (round off).
+        assert np.allclose(data_recalb.residuals, data.residuals, atol=0.01)
+        assert np.allclose(data_recalb.along_scan_errs, data.along_scan_errs, atol=0.01)
 
-    def test_parse(self):
+    def test_recal_residuals(self):
+        # this tests that a handful of residuals are equal to those calculated by hand
+        # when we do the recalibration. This assumes the default recalibration parameters of 2.15 CD and 0.145
+        # residual offset, so this test will fail if those default params change. This is by design.
         data = Hipparcos2Recalibrated()
         data.parse('27321', 'htof/test/data_for_tests/Hip21/')
+        comparison = [-0.12720199, -0.81727459, -1.60732196, 0.2189357, -0.35112427, -2.77118401]
+        resids = np.hstack([data.residuals.values[:3], data.residuals.values[-3:]])
+        assert np.allclose(comparison, resids, atol=0.001)
+
+    def test_recal_parameters(self):
+        """
+        hip 27321 Java tool params
+        # RAdeg        DEdeg        Plx      pm_RA    pm_DE    e_RA   e_DE   e_Plx  e_pmRA e_pmDE
+        # 86.82118073  -51.06671341 51.44    4.65     83.10    0.10   0.11   0.12   0.11   0.15
+        """
+        # this tests that the astrometric parameters are identical to those calculated by hand.
+        # when we do the recalibration
+        data = Hipparcos2Recalibrated()
+        data.parse('27321', 'htof/test/data_for_tests/Hip21/')
+        params = [data.recalibrated_header['third'][key] for key in ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE']]
+        param_errors = [data.recalibrated_header['third'][key] for key in ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE']]
+
+        comparison = np.array([-0.02631759, 0.01228683, -0.00729088, 0.05298548, 0.01326707])
+        comparison += np.array([51.44, 86.82118073, -51.06671341, 4.65, 83.10])
+        comparison_errors = np.array([0.34975472, 0.3020452, 0.33768252, 0.33901742, 0.45255402])
+        assert np.allclose(params, comparison, atol=0.01)
+        assert np.allclose(param_errors, comparison_errors, atol=0.01)
+
+    @pytest.mark.e2e
+    def test_write_out_recalibrated_data(self):
+        data = Hipparcos2Recalibrated()
+        data.parse('27321', 'htof/test/data_for_tests/Hip21/')
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            outpath = os.path.join(tmp_dir, '27321_recalibrated.d')
+            data.write_as_javatool_format(outpath)
+            print(outpath)
+            import pdb; pdb.set_trace()
+
 
 @pytest.mark.e2e
 class TestParallaxFactors:
