@@ -11,7 +11,7 @@ import warnings
 import numpy as np
 
 from htof.fit import AstrometricFitter
-from htof.special_parse import to_ra_dec_basis
+from htof.special_parse import to_ra_dec_basis, Hipparcos2Recalibrated
 from htof.parse import GaiaeDR3, GaiaDR2, GaiaData
 from htof.parse import HipparcosOriginalData, HipparcosRereductionJavaTool, HipparcosRereductionDVDBook
 from htof.sky_path import parallactic_motion, earth_ephemeris, earth_sun_l2_ephemeris
@@ -25,9 +25,11 @@ class Astrometry(object):
     with the IAD. Set to False if you want to recompute the parallax factors. Default is False.
     """
     parsers = {'gaiaedr3': GaiaeDR3, 'gaiadr2': GaiaDR2, 'gaia': GaiaData, 'hip21': HipparcosRereductionJavaTool,
-               'hip1': HipparcosOriginalData, 'hip2': HipparcosRereductionDVDBook}
+               'hip1': HipparcosOriginalData, 'hip2': HipparcosRereductionDVDBook,
+               'hip2recalibrated': Hipparcos2Recalibrated}
     ephemeri = {'gaiadr2': earth_sun_l2_ephemeris, 'gaia': earth_sun_l2_ephemeris, 'gaiaedr3': earth_sun_l2_ephemeris,
-                'hip1': earth_ephemeris, 'hip2': earth_ephemeris, 'hip21': earth_ephemeris}
+                'hip1': earth_ephemeris, 'hip2': earth_ephemeris, 'hip21': earth_ephemeris,
+                'hip2recalibrated': Hipparcos2Recalibrated}
 
     def __init__(self, data_choice, star_id, intermediate_data_directory, fitter=None, data=None,
                  central_epoch_ra=0, central_epoch_dec=0, format='jd', fit_degree=1,
@@ -38,6 +40,13 @@ class Astrometry(object):
             warnings.warn('normed keyword argument is Depreciated and will be removed in the next minor version ' 
                           'of htof. Please delete normed=False wherever it is used. Note that neither '
                           'normed=True nor False have any affect as of 0.3.5.', DeprecationWarning)
+
+        if data_choice.lower() == 'hip2recalibrated':
+            warnings.warn(f'You have selected {data_choice}, the recalibrated Hipparcos 2 data. Note that for this,'
+                          f' you should be feeding in the filepaths to the Hip21 (Hip2 java tool data), because'
+                          f' htof applies the recalibration on-the-fly for each file. As well, be sure to read'
+                          f' Brandt et al. 2022 to understand the limitations of using the recalibrated data. ')
+
         if data is None:
             DataParser = self.parsers[data_choice.lower()]
             data = DataParser()

@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 import pkg_resources
-from pandas import DataFrame
+from pandas import DataFrame, Series
 from shutil import copy
 
 from astropy.time import Time
@@ -80,7 +80,7 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             coeffs, errors, Q, new_residuals = fitter.fit_line(ra.mas, dec.mas, return_all=True)
             # compute the along-scan residuals
             new_residuals = to_along_scan_basis(new_residuals[:, 0], new_residuals[:, 1], self.scan_angle.values)
-            self.residuals[:] = new_residuals
+            self.residuals = Series(new_residuals, index=self.residuals.index)
             """
             update the header with the new statistics
             """
@@ -118,6 +118,9 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
         with the exact same format as the input JavaTool IAD (i.e., the .d files).
         We recommend using the normal .write() format. This method is for users who do not want to adopt the
         htof file format output by the normal .write() format.
+
+        :param: path: path to write the file to. filename should end with .d . ".d" is the same file ending as the
+        java tool IAD. But in principle, most common ascii file extensions should work (e.g., ".txt" etc).
         """
         if self.recalibrated_header is None or self.recalibrated_data is None:
             warnings.warn('This source was NOT recalibrated, see earlier warnings as to why. Will not save any '

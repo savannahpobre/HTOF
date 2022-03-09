@@ -7,6 +7,7 @@ the hipparcos IAD.
 - htof.special_parse.Hipparcos2Recalibrated can now write out a data file in the same format 
   (although they do not match byte-by-byte exactly) as the hip2 java tool IAD.
 - fitting with return_all=True now returns 4 arrays, the last is the residuals (in ra and dec) of the fit.
+- New examples jupyter notebook for recalibrating the hip2 java tool IAD.
 
 1.0.3 (2022-01-26)
 ------------------
