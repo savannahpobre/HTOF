@@ -71,6 +71,7 @@ class TestHip2RecalibratedParser:
             assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.001)
             assert np.allclose(reloaded_data._iorb, data._iorb)
 
+
 @pytest.mark.e2e
 class TestParallaxFactors:
     """
