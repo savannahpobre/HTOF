@@ -1,7 +1,7 @@
 1.1.0 (2022-03-01)
 ------------------
 - Added a new hip2 parser, in special_parse.py, that will add the residual offset and cosmic dispersion of 
-  Brandt et al. 2022 and output new IAD with new best-fit parameters. Currently only for 5-parameter sources.
+  Brandt et al. 2022 and output new IAD with new best-fit parameters. Works for 5, 7, and 9 parameter sources.
 - Added the option for htof.main.Astrometry to load in and use the parallax factors supplied with
 the hipparcos IAD.
 - htof.special_parse.Hipparcos2Recalibrated can now write out a data file in the same format 

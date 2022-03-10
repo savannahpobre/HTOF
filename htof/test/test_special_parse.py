@@ -50,7 +50,7 @@ class TestHip2RecalibratedParser:
     @pytest.mark.e2e
     def test_parse_and_write_recalibrated_data(self):
         hip_ids = [39, 651, 4427, 17447, 21000, 27100, 27321,
-                   37515, 44050, 94046, 94312, 114114]
+                   37515, 44050, 94046, 94312, 114114, 10160, 581]
         with tempfile.TemporaryDirectory() as tmp_dir:
             for hip_id in hip_ids:
                 data = Hipparcos2Recalibrated()

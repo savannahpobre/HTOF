@@ -3,6 +3,7 @@ import warnings
 import pkg_resources
 from pandas import DataFrame, Series
 from shutil import copy
+from copy import deepcopy
 
 from astropy.time import Time
 from astropy.coordinates import Angle
@@ -47,16 +48,23 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
                                                                      error_inflate=False,
                                                                      attempt_adhoc_rejection=attempt_adhoc_rejection,
                                                                      reject_known=reject_known, **kwargs)
+        apply_calibrations = True
         if self.meta['catalog_soltype'] != 5:
-            warnings.warn(f'This source has a solution type with {self.meta["catalog_soltype"]} free parameters. '
-                          f'Only five-parameter sources can be '
-                          'recalibrated currently. No recalibration will be performed.')
-            return header, raw_data
-        elif attempt_adhoc_rejection is False or reject_known is False:
+            if self.meta['catalog_soltype'] == 7 or self.meta['catalog_soltype'] == 9:
+                warnings.warn(f'This source has a solution type of {self.meta["catalog_soltype"]}. '
+                              f' Take extra caution using the recalibration on this source. Because the recalibration '
+                              f'was developed using 5 parameter sources only.')
+            else:
+                warnings.warn(f'This source has a solution type of {self.meta["catalog_soltype"]}. '
+                              f'htof will only recalibrate 5, 7, and 9 parameter solutions currently. '
+                              f'No recalibration will be performed.')
+                apply_calibrations = False
+        if attempt_adhoc_rejection is False or reject_known is False:
             warnings.warn('We have not tested recalibration without rejecting any of the flagged or bugged '
                           'observations. No recalibration will be performed.')
-            return header, raw_data
-        else:
+            apply_calibrations = False
+
+        if apply_calibrations:
             # apply the calibrations
             self.residuals += self.residual_offset  # note that this modifies the raw_data column also.
             self.along_scan_errs = np.sqrt(self.along_scan_errs**2 + self.cosmic_dispersion**2)
@@ -66,11 +74,12 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             ra_motion, dec_motion = to_ra_dec_basis(self.parallax_factors.values, self.scan_angle.values)
             parallactic_perturbations = {'ra_plx': ra_motion, 'dec_plx': dec_motion}
             # refit the data, calculate the new residuals, and parameters.
+            fit_degree = {5: 1, 7: 2, 9: 3}[int(self.meta['catalog_soltype'])]
             fitter = AstrometricFitter(inverse_covariance_matrices=self.inverse_covariance_matrix,
                                        epoch_times=Time(Time(self.julian_day_epoch(), format='jd'), format='jyear').value,
                                        central_epoch_dec=1991.25,
                                        central_epoch_ra=1991.25,
-                                       fit_degree=1,
+                                       fit_degree=fit_degree,
                                        use_parallax=True,
                                        parallactic_pertubations=parallactic_perturbations)
             # get residuals in ra and dec.
@@ -84,7 +93,7 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             """
             update the header with the new statistics
             """
-            ntransits, nparam = len(self), 5
+            ntransits, nparam = len(self), int(self.meta['catalog_soltype'])
             header['second']['NOB'] = len(self)
             header['second']['NR'] = 0  # because we automatically remove any "flagged as rejected" observations.
             header['first']['F1'] = 0
@@ -93,24 +102,30 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             if np.isfinite(header['first']['F2']):
                 header['first']['F2'] = np.round(header['first']['F2'], 4)
             # update the best fit parameters with the new values
-            for i, key, dp, in zip(np.arange(5), ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE'], [2, 8, 8, 2, 2]):
+            # dpmRA  dpmDE  e_dpmRA  e_dpmDE  ddpmRA  ddpmDE  e_ddpmRA  e_ddpmDE
+            for i, key, dp, in zip(np.arange(nparam),
+                                   ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE', 'dpmRA', 'dpmDE', 'ddpmRA', 'ddpmDE'],
+                                   [2, 8, 8, 2, 2, 2, 2, 2, 2]):
                 header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
             # update the errors with the new errors
-            for i, key, dp, in zip(np.arange(5), ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE'], [2, 2, 2, 2, 2]):
+            for i, key, dp, in zip(np.arange(nparam),
+                                   ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE', 'e_dpmRA', 'e_dpmDE', 'e_ddpmRA', 'e_ddpmDE'],
+                                   [2, 2, 2, 2, 2, 2, 2, 2, 2]):
                 header['third'][key] = np.round(errors[i], dp)
             # save the modified header to the class, because these will be
             # used by self.write_as_javatool_format()
-            self.recalibrated_header = header
+            self.recalibrated_header = deepcopy(header)
             """
             update the raw_data columns with the new data. Note that rejected/bugged epochs are already
             taken care of.
             """
             # data order in Java tool data: IORB   EPOCH    PARF    CPSI    SPSI     RES   SRES
             recalibrated_data = DataFrame({'1': self._iorb, '2': self._epoch - 1991.25, '3': self.parallax_factors,
-                                       '4': self._cpsi, '5': self._spsi, '6': np.round(self.residuals.values, 3),
-                                       '7': np.round(self.along_scan_errs.values, 3)})
+                                           '4': self._cpsi, '5': self._spsi, '6': np.round(self.residuals.values, 3),
+                                           '7': np.round(self.along_scan_errs.values, 3)})
             self.recalibrated_data = recalibrated_data
-            return None, None  # the raw header and raw data have been modified, so do not return them.
+            header, raw_data = None, None  # the raw header and raw data have been modified, so clear them.
+        return header, raw_data
 
     def write_as_javatool_format(self, path: str):
         """
