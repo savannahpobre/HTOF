@@ -49,16 +49,11 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
                                                                      attempt_adhoc_rejection=attempt_adhoc_rejection,
                                                                      reject_known=reject_known, **kwargs)
         apply_calibrations = True
-        if self.meta['catalog_soltype'] != 5:
-            if self.meta['catalog_soltype'] == 7 or self.meta['catalog_soltype'] == 9:
-                warnings.warn(f'This source has a solution type of {self.meta["catalog_soltype"]}. '
-                              f' Take extra caution using the recalibration on this source. Because the recalibration '
-                              f'was developed using 5 parameter sources only.')
-            else:
-                warnings.warn(f'This source has a solution type of {self.meta["catalog_soltype"]}. '
-                              f'htof will only recalibrate 5, 7, and 9 parameter solutions currently. '
-                              f'No recalibration will be performed.')
-                apply_calibrations = False
+        if not (self.meta['catalog_soltype'] == 5 or self.meta['catalog_soltype'] == 7 or self.meta['catalog_soltype'] == 9):
+            warnings.warn(f'This source has a solution type of {self.meta["catalog_soltype"]}. '
+                          f'htof will only recalibrate 5, 7, and 9 parameter solutions currently. '
+                          f'No recalibration will be performed.')
+            apply_calibrations = False
         if attempt_adhoc_rejection is False or reject_known is False:
             warnings.warn('We have not tested recalibration without rejecting any of the flagged or bugged '
                           'observations. No recalibration will be performed.')
