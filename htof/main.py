@@ -34,8 +34,8 @@ class Astrometry(object):
     def __init__(self, data_choice, star_id, intermediate_data_directory, fitter=None, data=None,
                  central_epoch_ra=0, central_epoch_dec=0, format='jd', fit_degree=1,
                  use_parallax=False, central_ra=None, central_dec=None,
-                 use_catalog_parallax_factors=False, **kwargs):
-
+                 use_catalog_parallax_factors=False, along_scan_error_scaling=1.0, **kwargs):
+        self.along_scan_error_scaling = along_scan_error_scaling
         if 'normed' in kwargs:
             warnings.warn('normed keyword argument is Depreciated and will be removed in the next minor version ' 
                           'of htof. Please delete normed=False wherever it is used. Note that neither '
@@ -52,6 +52,7 @@ class Astrometry(object):
             data = DataParser()
             data.parse(star_id=star_id,
                        intermediate_data_directory=intermediate_data_directory)
+            data.scale_along_scan_errs(self.along_scan_error_scaling)
             data.calculate_inverse_covariance_matrices()
 
         if use_catalog_parallax_factors and (not 'hip' in data_choice.lower()):

@@ -129,6 +129,14 @@ class DataParser(object):
         t = QTable(cols, names=['scan_angle', 'julian_day_epoch', 'residuals', 'along_scan_errs', 'icov'])
         return t
 
+    def scale_along_scan_errs(self, scaling_factor):
+        if len(self) == 0:
+            raise ValueError('Cannot scale the along scan errors, nor create uniform errors and scale those '
+                             'because this data parser does not have any data (i.e., len(self) is 0).')
+        if len(self.along_scan_errs) == 0:
+            self.along_scan_errs = pd.Series(np.ones(len(self)), dtype=np.float64)
+        self.along_scan_errs *= scaling_factor
+
     def __add__(self, other):
         all_scan_angles = pd.concat([self.scan_angle, other.scan_angle])
         all_epoch = pd.concat([pd.DataFrame(self.julian_day_epoch()), pd.DataFrame(other.julian_day_epoch())])

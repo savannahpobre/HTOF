@@ -8,6 +8,10 @@ the hipparcos IAD.
   (although they do not match byte-by-byte exactly) as the hip2 java tool IAD.
 - fitting with return_all=True now returns 4 arrays, the last is the residuals (in ra and dec) of the fit.
 - New examples jupyter notebook for recalibrating the hip2 java tool IAD.
+- Astrometry() now has an along_scan_error_scaling attribute that will scale the
+  along scan errors by that factor. This is particularly useful for gaia forecasting. Setting
+  along_scan_error_scaling = 0.1 for instance, will artifically make all the Gaia GOST 
+  scans have an error of 0.1 mas (normally, these along scan errors are not provided by GOST)
 
 1.0.3 (2022-01-26)
 ------------------
