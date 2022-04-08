@@ -37,16 +37,11 @@ class Astrometry(object):
                  use_parallax=False, central_ra=None, central_dec=None,
                  use_catalog_parallax_factors=False, along_scan_error_scaling=1.0, **kwargs):
         self.along_scan_error_scaling = along_scan_error_scaling
-        if 'normed' in kwargs:
-            warnings.warn('normed keyword argument is Depreciated and will be removed in the next minor version ' 
-                          'of htof. Please delete normed=False wherever it is used. Note that neither '
-                          'normed=True nor False have any affect as of 0.3.5.', DeprecationWarning)
-
         if data_choice.lower() == 'hip2recalibrated':
             warnings.warn(f'You have selected {data_choice}, the recalibrated Hipparcos 2 data. Note that for this,'
                           f' you should be feeding in the filepaths to the Hip21 (Hip2 java tool data), because'
                           f' htof applies the recalibration on-the-fly for each file. As well, be sure to read'
-                          f' Brandt et al. 2022 to understand the limitations of using the recalibrated data. ')
+                          f' Brandt et al. 2022 to understand the limitations of using the recalibrated data. ')     # pragma: no cover
 
         if data is None:
             DataParser = self.parsers[data_choice.lower()]
@@ -61,7 +56,8 @@ class Astrometry(object):
             if not use_catalog_parallax_factors:
                 # recompute the parallax factors at the new central_ra and central_ra epoch.
                 if not (isinstance(central_ra, Angle) and isinstance(central_dec, Angle)):
-                    raise ValueError('central_ra and central_dec must be instances of astropy.coordinates.Angle.')
+                    raise ValueError('Cannot compute parallax factors. central_ra and central_dec must be instances'
+                                     ' of astropy.coordinates.Angle.')     # pragma: no cover
                 if central_epoch_dec != central_epoch_ra:
                     warnings.warn('central_epoch_dec != central_epoch_ra. '
                                   'Using central_epoch_ra as the central_epoch to compute the parallax motion.',
