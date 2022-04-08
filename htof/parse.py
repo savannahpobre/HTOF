@@ -142,13 +142,13 @@ class DataParser(object):
         all_epoch = pd.concat([pd.DataFrame(self.julian_day_epoch()), pd.DataFrame(other.julian_day_epoch())])
         all_residuals = pd.concat([self.residuals, other.residuals])
         all_along_scan_errs = pd.concat([self.along_scan_errs, other.along_scan_errs])
-        # TODO: add parallax factors. Tricky because gaia missions do not have them.
+        all_parallax_factors = pd.concat([self.parallax_factors, other.parallax_factors])
         all_inverse_covariance_matrix = safe_concatenate(self.inverse_covariance_matrix,
                                                          other.inverse_covariance_matrix)
 
         return DataParser(scan_angle=all_scan_angles, epoch=all_epoch, residuals=all_residuals,
                           inverse_covariance_matrix=all_inverse_covariance_matrix,
-                          along_scan_errs=all_along_scan_errs)
+                          along_scan_errs=all_along_scan_errs, parallax_factors=all_parallax_factors)
 
     def __radd__(self, other):
         if other == 0:
@@ -179,6 +179,7 @@ class GaiaData(DataParser):
         data = self.reject_dead_times(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'], data)
         self._epoch = data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]']
         self.scan_angle = data['scanAngle[rad]']
+        self.parallax_factors = data['parallaxFactorAlongScan']
 
     def trim_data(self, epochs, data, min_mjd, max_mjd):
         valid = np.logical_and(epochs >= min_mjd, epochs <= max_mjd)

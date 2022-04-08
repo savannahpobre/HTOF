@@ -22,7 +22,8 @@ class Astrometry(object):
     General wrapper for the different fitting and parsing classes.
 
     :param use_catalog_parallax_factors: True if you want to load and use the hipparcos catalog parallax factors given
-    with the IAD. Set to False if you want to recompute the parallax factors. Default is False.
+    with the IAD, or the gaia parallax factors shipped with the GOST scanning law.
+    Set to False if you want to recompute the parallax factors. Default is False.
     """
     parsers = {'gaiaedr3': GaiaeDR3, 'gaiadr2': GaiaDR2, 'gaia': GaiaData, 'hip21': HipparcosRereductionJavaTool,
                'hip1': HipparcosOriginalData, 'hip2': HipparcosRereductionDVDBook,
@@ -55,11 +56,6 @@ class Astrometry(object):
             data.scale_along_scan_errs(self.along_scan_error_scaling)
             data.calculate_inverse_covariance_matrices()
 
-        if use_catalog_parallax_factors and (not 'hip' in data_choice.lower()):
-            raise ValueError(f'You have selected data choice {data_choice} and to use catalog parallax factors, '
-                             'but parallax factors are only available for Hipparcos. Change data choice or '
-                             'set use_catalog_parallax_factors=False')
-
         parallactic_pertubations = None
         if use_parallax:
             if not use_catalog_parallax_factors:
@@ -75,11 +71,6 @@ class Astrometry(object):
                                                            Time(central_epoch_ra, format=format).jyear,
                                                            ephemeris=self.ephemeri[data_choice.lower()])
             else:
-                if not np.isclose(Time(central_epoch_ra, format=format).jyear, 1991.25):
-                    raise ValueError(f'The central epoch for ra is {central_epoch_ra}, yet you have selected to do a fit with '
-                                     f'parallax and use_catalog_parallax_factors=True. Either turn '
-                                     f'use_catalog_parallax_factors=False, to recompute them anew at this new epoch, '
-                                     f'or do a fit without parallax by setting use_parallax=False. ')
                 ra_motion, dec_motion = to_ra_dec_basis(data.parallax_factors.values, data.scan_angle.values)
             parallactic_pertubations = {'ra_plx': ra_motion, 'dec_plx': dec_motion}
 

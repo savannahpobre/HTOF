@@ -3,7 +3,6 @@ from astropy.coordinates import Angle
 from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated, HipparcosRereductionJavaTool
 from htof.main import Astrometry
 import pytest
-from glob import glob
 import os
 import tempfile
 
@@ -71,6 +70,29 @@ class TestHip2RecalibratedParser:
             assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.001)
             assert np.allclose(reloaded_data._iorb, data._iorb)
 
+@pytest.mark.e2e
+class TestParallaxFactorsGaia:
+    """
+    Tests the computation of the parallax factors anew, as well as tests the basis transformations from along-scan
+    to ra and dec.
+    """
+    # Hip 27321 parameters from the Gaia EDR3 archive.
+    cntr_ra, cntr_dec = Angle(86.82123452009108, 'degree'), Angle(-51.066136257823345, 'degree')
+    # generate fitter and parse intermediate data
+    astro = Astrometry('Gaiaedr3', '27321', 'htof/test/data_for_tests/GaiaeDR3', central_epoch_ra=2016,
+                       central_epoch_dec=2016, format='jyear', fit_degree=1, use_parallax=True,
+                       central_ra=cntr_ra, central_dec=cntr_dec)
+    ra_motion = astro.fitter.parallactic_pertubations['ra_plx']
+    dec_motion = astro.fitter.parallactic_pertubations['dec_plx']
+    along_scan_parallax_factors = astro.data.parallax_factors.values
+    scan_angle = astro.data.scan_angle.values
+
+    def test_new_computed_parallax_factors_agree_with_scanninglaw(self):
+        # test that the newly computed parallax factors agree with
+        # parallaxFactorAlongScan from the GOST data.
+        assert np.allclose(self.along_scan_parallax_factors,
+                           to_along_scan_basis(self.ra_motion, self.dec_motion, self.scan_angle), atol=0.03)
+
 
 @pytest.mark.e2e
 class TestParallaxFactors:
@@ -89,7 +111,7 @@ class TestParallaxFactors:
     along_scan_parallax_factors = astro.data.parallax_factors.values
     scan_angle = astro.data.scan_angle.values
 
-    def test_parallax_factors_forward_transform(self):
+    def test_new_computed_parallax_factors_agree_with_catalog(self):
         assert np.allclose(self.along_scan_parallax_factors,
                            to_along_scan_basis(self.ra_motion, self.dec_motion, self.scan_angle), atol=0.03)
 
@@ -101,6 +123,15 @@ class TestParallaxFactors:
         ra_motion_acnull, dec_motion_acnull = to_ra_dec_basis(al_parallax_factor, self.scan_angle)
         assert np.allclose(ra_motion, ra_motion_acnull, atol=0.03)
         assert np.allclose(dec_motion, dec_motion_acnull, atol=0.03)
+
+    def test_parallax_factors_independent_of_reference_epoch(self):
+        astron = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1', central_epoch_ra=2000,
+                           central_epoch_dec=2000, format='jyear', fit_degree=1, use_parallax=True,
+                           central_ra=self.cntr_ra, central_dec=self.cntr_dec)
+        ra_motionn = astron.fitter.parallactic_pertubations['ra_plx']
+        dec_motionn = astron.fitter.parallactic_pertubations['dec_plx']
+        assert np.allclose(to_along_scan_basis(self.ra_motion, self.dec_motion, self.scan_angle),
+                           to_along_scan_basis(ra_motionn, dec_motionn, self.scan_angle))
 
 
 def test_basis_change_consistency():

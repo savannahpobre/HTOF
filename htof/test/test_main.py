@@ -277,10 +277,3 @@ def test_optimal_central_epochs_forHip1_hip27321_no_parallax():
     assert np.all(np.abs(dec_vals) >= dec_mudec_cov)
     assert np.all(np.abs(ra_vals) >= ra_mura_cov)
     assert np.allclose([dec_mudec_cov, ra_mura_cov], 0, atol=1e-9)
-
-
-def test_safety_catch_on_use_catalog_parallax_factors():
-    with pytest.raises(ValueError):
-        Astrometry('gaia', '27321', 'htof/test/data_for_tests/GaiaeDR3', central_epoch_ra=1990,
-                   central_epoch_dec=1990, format='jyear', fit_degree=1,
-                   use_parallax=True, use_catalog_parallax_factors=True)
