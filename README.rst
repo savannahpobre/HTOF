@@ -193,13 +193,20 @@ with any of the kwargs or args of ``astropy.table.Table.write()``.
 
 Usage: Fits with Parallax
 -------------------------
-To fit an object with parallax, we need to provide a `central_ra` and `central_dec` to the `Astrometry` class. These positions
-will be used to calculate the parallax components of the fit. Using beta pic as an example, we would do:
+To fit an object with parallax, there are two ways. Both are equivalent.
+
+    1. Let htof compute the parallax factors anew.
+    2. Pull the parallax factors from the IAD or the scanning law.
+
+Option 1: we need to provide a `central_ra` and `central_dec` to the `Astrometry` class. These positions
+will be used to calculate the parallax components of the fit (the parallax factors). Using beta pic as an example,
+we would do:
 
 
 .. code-block:: python
 
     from htof.main import Astrometry
+    import numpy as np
     from astropy.coordinates import Angle
     # central ra and dec from the Hip1 catalog
     cntr_ra, cntr_dec = Angle(86.82118054, 'degree'), Angle(-51.06671341, 'degree')
@@ -211,6 +218,25 @@ will be used to calculate the parallax components of the fit. Using beta pic as 
     solution_vector, errors, chisq, residuals = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
     parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
 
+
+Option 2: In most use cases, this option is perfectly fine. And it is simpler. The object's parallax factors is available with the IAD (or the scanning law in the case of Gaia)
+So you do not need a `central_ra` and `central_dec` to the `Astrometry` class. In which case, you can do:
+
+.. code-block:: python
+
+    from htof.main import Astrometry
+    import numpy as np
+    # generate fitter and parse intermediate data
+    astro = Astrometry('Hip1', '27321', 'htof/test/data_for_tests/Hip1/IntermediateData', central_epoch_ra=1991.25,
+                       central_epoch_dec=1991.25, format='jyear', fit_degree=1, use_parallax=True,
+                       use_catalog_parallax_factors=True)
+    ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
+    solution_vector, errors, chisq, residuals = astro.fit(ra_vs_epoch, dec_vs_epoch, return_all=True)
+    parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
+
+Note that we have set ``use_catalog_parallax_factors=True``. This tells htof to *not* compute parallax factors
+anew, and instead to pull them from the IAD. If data choice was 'Gaiaedr3' instead of 'hip1', then the parallax factors
+would come from the GOST csv file.
 
 Appendix
 --------
