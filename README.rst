@@ -37,7 +37,7 @@ while in the root directory of this repo. It can also be installed directly from
 Usage
 -----
 
-HTOF has a rich variety of usages. We encourage the reader to consult the examples.ipynb jupyter notebook
+HTOF has a rich variety of usages. We encourage the reader to consult the examples/examples.ipynb jupyter notebook
 for a set of usage examples (e.g., fitting the standard astrometric model to data, combining astrometric missions).
 However, we also go into a few basic and specific use cases in this readme.
 
@@ -343,7 +343,7 @@ produce a fit which includes parallax. We now do:
     parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
 
 
-For more examples, refer to the `examples.ipynb` Jupyter notebook. There we will make a figure like Figure 3 from the HTOF paper.
+For more examples, refer to the `examples/examples.ipynb` Jupyter notebook. There we will make a figure like Figure 3 from the HTOF paper.
 
 Flagged Sources
 ~~~~~~~~~~~~~~~
