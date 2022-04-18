@@ -105,6 +105,38 @@ class TestHip1Fits:
         assert np.allclose(diffs, 0, atol=0.02)
         # todo input catalog values and test errors.
 
+@pytest.mark.e2e
+def test_Gaia_fit_to_hip27321():
+    # Hip 27321 central ra and dec from the gost data file.
+    cntr_ra, cntr_dec = Angle(1.5153157780177544, 'radian'), Angle(-0.8912787619608181, 'radian')
+    #
+    plx = 51.87  # mas
+    pmRA = 4.65  # mas/year
+    pmDec = 81.96  # mas/year
+    # generate fitter and parse intermediate data
+    for use_catalog_parallax_factors in [False, True]:
+        print('not '* (not use_catalog_parallax_factors) + 'using catalog parallax factors.')
+        # trying fits with a fresh computation of the parallax factors and without
+        astro = Astrometry('GaiaEDR3', '27321', 'htof/test/data_for_tests/GaiaeDR3',
+                           central_epoch_ra=2016, central_epoch_dec=2016,
+                           format='jyear', fit_degree=1, use_parallax=True,
+                           central_ra=cntr_ra, central_dec=cntr_dec,
+                           use_catalog_parallax_factors=use_catalog_parallax_factors)
+        chisq = np.sum(astro.data.residuals ** 2 / astro.data.along_scan_errs ** 2)
+        # generate ra and dec for each observation.
+        year_epochs = Time(astro.data.julian_day_epoch(), format='jd', scale='tcb').jyear - \
+                      Time(2016, format='decimalyear').jyear
+        ra_motion = astro.fitter.parallactic_pertubations['ra_plx']
+        dec_motion = astro.fitter.parallactic_pertubations['dec_plx']
+        ra = Angle(ra_motion * plx + pmRA * year_epochs, unit='mas')
+        dec = Angle(dec_motion * plx + pmDec * year_epochs, unit='mas')
+        #
+        coeffs, errors, chisq_found, residuals = astro.fit(ra.mas, dec.mas, return_all=True)
+        residuals = to_along_scan_basis(residuals[:, 0], residuals[:, 1], astro.data.scan_angle.values)
+        assert np.isclose(chisq, chisq_found, atol=1E-3)
+        assert np.allclose([pmRA, pmDec], np.array([coeffs[3], coeffs[4]]).round(2))
+        assert np.isclose(plx, coeffs[0].round(2), atol=0.01)
+
 
 @pytest.mark.e2e
 def test_Hip1_fit_to_hip27321():
