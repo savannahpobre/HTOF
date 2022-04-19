@@ -406,6 +406,17 @@ def test_calculating_covariance_matrices():
         # modulo pi since the scan angle and angle of short axis could differ in sign from one another.
 
 
+def test_calculating_covariance_matrices_with_zero_al_error():
+    scan_angles = pd.DataFrame(data=np.linspace(0, 2 * np.pi, 5))
+    al_errs = np.ones(5)
+    al_errs[0] = 0
+    # calc_inverse_covariance_matrices will modify al_errs in place, whereever a value is 0, setting it to 1000
+    calc_inverse_covariance_matrices(scan_angles, along_scan_errs=al_errs,
+                                     cross_scan_along_scan_var_ratio=1)
+    assert np.allclose(al_errs[1:], 1)
+    assert np.isclose(al_errs[0], 1000)
+
+
 def test_concatenating_data():
     data = DataParser(scan_angle=np.arange(3), epoch=np.arange(1991, 1994),
                       residuals=np.arange(2, 5),

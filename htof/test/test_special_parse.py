@@ -57,6 +57,22 @@ class TestHip2RecalibratedParser:
                 outpath = os.path.join(tmp_dir, f'{hip_id}_recalibrated.d')
                 data.write_as_javatool_format(outpath)
 
+    def test_parse_and_write_invalid_recalibrated_data(self):
+        data = Hipparcos2Recalibrated()
+        data.parse(27321, 'htof/test/data_for_tests/Hip21/')
+        data.recalibrated_data = None
+        out = data.write_as_javatool_format('')
+        assert out is None
+
+    def test_invalid_recalibration(self):
+        data = Hipparcos2Recalibrated()
+        header, raw_data = data.parse(27321, 'htof/test/data_for_tests/Hip21/', reject_known=False)
+        assert header is not None  # if header and raw data (both not None), are returned, then
+        # the recalibration was NOT done.
+        # testing that a solution type VIM (soltype integer 3) is NOT recalibrated.
+        header, raw_data = data.parse(999999, 'htof/test/data_for_tests/Hip21/')
+        assert header is not None
+
     @pytest.mark.e2e
     def test_write_and_read_recalibrated_data(self):
         data = Hipparcos2Recalibrated()
