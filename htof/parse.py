@@ -12,6 +12,7 @@
 import numpy as np
 import pandas as pd
 from scipy import stats, special
+import requests
 import warnings
 from ast import literal_eval
 import os
@@ -161,6 +162,22 @@ class GaiaData(DataParser):
                                        inverse_covariance_matrix=inverse_covariance_matrix)
         self.min_epoch = min_epoch
         self.max_epoch = max_epoch
+
+    def query_gost_xml(target):
+        url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
+
+        try:
+            with requests.Session() as s:
+                s.get(url)
+                print(s.cookies.get_dict())
+                headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
+                response = requests.request("GET", url, headers=headers)
+
+                return response.text
+        except:
+            # TODO: display error message
+            print('request could not be made')
+            return ""
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
