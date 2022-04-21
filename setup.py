@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(name='htof',
       author='G. Mirek Brandt, Daniel Michalik',
-      version='1.0.3',
+      version='1.1.0',
       python_requires='>=3.6',
       packages=find_packages(),
       package_dir={'htof': 'htof'},

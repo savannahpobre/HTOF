@@ -118,7 +118,10 @@ class AstrometricFitter(object):
         """
         :param ra_vs_epoch: 1d array of right ascension, ordered the same as the covariance matrices and epochs.
         :param dec_vs_epoch: 1d array of declination, ordered the same as the covariance matrices and epochs.
-        :param return_all: bool. True to return the solution vector as well as the 1-sigma error estimates on the parameters.
+        :param return_all: bool. True to return the solution vector as well as the 1-sigma error estimates on the parameters,
+        the chisquared of the solution, and the ra and dec residuals ( data - model). The data - model residuals will be
+        an array of shape Nx2 where N is the number of transits. The first column are the ra residuals and the second
+        column is the dec residuals.
         :return: ndarray: best fit astrometric parameters.
                  E.g. [ra0, dec0, mu_ra, mu_dec] if use_parallax=False
                  or, [parallax_angle, ra0, dec0, mu_ra, mu_dec] if use_parallax=True
@@ -130,11 +133,11 @@ class AstrometricFitter(object):
         solution = np.matmul(cov_matrix, self._chi2_vector(ra_vs_epoch=ra_vs_epoch, dec_vs_epoch=dec_vs_epoch))
         errors = np.sqrt(np.diagonal(cov_matrix))
         # calculating chisq of the fit.
-        chisq = chisq_of_fit(solution, ra_vs_epoch, dec_vs_epoch,
-                             self.ra_epochs, self.dec_epochs,
-                             self.inverse_covariance_matrices, **self.parallactic_pertubations,
-                             use_parallax=self.use_parallax)
-        return solution if not return_all else (solution, errors, chisq)
+        chisq, residuals = chisq_of_fit(solution, ra_vs_epoch, dec_vs_epoch,
+                                        self.ra_epochs, self.dec_epochs,
+                                        self.inverse_covariance_matrices, **self.parallactic_pertubations,
+                                        use_parallax=self.use_parallax)
+        return solution if not return_all else (solution, errors, chisq, residuals)
 
     def _chi2_vector(self, ra_vs_epoch, dec_vs_epoch):
         # this is the vector of partial derivatives of chisquared with respect to each astrometric parameter

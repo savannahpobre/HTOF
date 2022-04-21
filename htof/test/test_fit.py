@@ -93,7 +93,7 @@ class TestAstrometricFitter:
         astrometric_data = generate_astrometric_data()
         fitter = AstrometricFitter(inverse_covariance_matrices=astrometric_data['inverse_covariance_matrix'],
                                    epoch_times=astrometric_data['epoch_delta_t'])
-        sol, errs, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
+        sol, errs, chisq, resids = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert errs.size == 4
         assert np.isclose(0, chisq, atol=1e-7)
 
@@ -137,7 +137,7 @@ class TestAstrometricFitter:
                                    epoch_times=astrometric_data['epoch_delta_t'], use_parallax=True,
                                    parallactic_pertubations={'ra_plx': ra_pert, 'dec_plx': dec_pert},
                                    fit_degree=1)
-        solution, errors, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
+        solution, errors, chisq, resids = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert np.allclose(solution[1:], astrometric_data['linear_solution'], atol=0, rtol=1E-6)
         assert np.allclose(solution[0], real_plx)
 
@@ -153,7 +153,7 @@ class TestAstrometricFitter:
                                    epoch_times=astrometric_data['epoch_delta_t'], use_parallax=True,
                                    parallactic_pertubations={'ra_plx': ra_pert, 'dec_plx': dec_pert},
                                    fit_degree=3)
-        solution, errors, chisq = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
+        solution, errors, chisq, resids = fitter.fit_line(astrometric_data['ra'], astrometric_data['dec'], return_all=True)
         assert np.allclose(solution[1:], astrometric_data['nonlinear_solution'], atol=0, rtol=1E-4)
         assert np.allclose(solution[0], real_plx)
 
