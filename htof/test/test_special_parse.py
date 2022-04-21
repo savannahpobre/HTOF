@@ -1,6 +1,8 @@
 import numpy as np
 from astropy.coordinates import Angle
-from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated, HipparcosRereductionJavaTool
+from htof.special_parse import to_ra_dec_basis, to_along_scan_basis, Hipparcos2Recalibrated, \
+    Hipparcos2ParserFactory, get_datatype
+from htof.parse import HipparcosRereductionJavaTool, HipparcosRereductionDVDBook
 from htof.main import Astrometry
 import pytest
 import os
@@ -85,6 +87,41 @@ class TestHip2RecalibratedParser:
             assert np.allclose(reloaded_data.residuals, data.residuals, atol=0.001)
             assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.001)
             assert np.allclose(reloaded_data._iorb, data._iorb)
+
+
+class TestHipparcos2ParserFactory:
+    factory = Hipparcos2ParserFactory
+
+    def test_get_datatype(self):
+        dtype = get_datatype('htof/test/data_for_tests/Hip21/IntermediateData/H027321.d')
+        assert dtype == 'hip2javatool'
+        dtype = get_datatype('htof/test/data_for_tests/Hip2/IntermediateData/HIP027321.d')
+        assert dtype == 'hip2dvd'
+
+    def test_get_appropriate_parser(self):
+        parser = self.factory.get_appropriate_parser('htof/test/data_for_tests/Hip21/IntermediateData/H027321.d')
+        assert parser is HipparcosRereductionJavaTool
+        parser = self.factory.get_appropriate_parser('htof/test/data_for_tests/Hip2/IntermediateData/HIP027321.d')
+        assert parser is HipparcosRereductionDVDBook
+
+    @pytest.mark.e2e
+    def test_parse_and_instantiate_hip2dvd(self):
+        star_id, iad_dir = '27321', 'htof/test/data_for_tests/Hip2/IntermediateData/'
+        parser = self.factory.parse_and_instantiate(star_id, iad_dir)
+        assert type(parser) is HipparcosRereductionDVDBook
+        comparison_parser = HipparcosRereductionDVDBook.parse_and_instantiate(star_id, iad_dir)
+        assert np.allclose(comparison_parser.scan_angle, parser.scan_angle)
+        assert np.allclose(comparison_parser.residuals, parser.residuals)
+
+    @pytest.mark.e2e
+    def test_parse_and_instantiate_hip2javatool(self):
+        star_id, iad_dir = '27321', 'htof/test/data_for_tests/Hip21/IntermediateData/'
+        parser = self.factory.parse_and_instantiate(star_id, iad_dir)
+        assert type(parser) is HipparcosRereductionJavaTool
+        comparison_parser = HipparcosRereductionJavaTool.parse_and_instantiate(star_id, iad_dir)
+        assert np.allclose(comparison_parser.scan_angle, parser.scan_angle)
+        assert np.allclose(comparison_parser.residuals, parser.residuals)
+
 
 @pytest.mark.e2e
 class TestParallaxFactorsGaia:

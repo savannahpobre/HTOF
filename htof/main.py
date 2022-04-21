@@ -8,10 +8,9 @@ Author: G. Mirek Brandt
 from astropy.time import Time
 from astropy.coordinates import Angle
 import warnings
-import numpy as np
 
 from htof.fit import AstrometricFitter
-from htof.special_parse import to_ra_dec_basis, Hipparcos2Recalibrated
+from htof.special_parse import to_ra_dec_basis, Hipparcos2Recalibrated, Hipparcos2ParserFactory
 from htof.parse import GaiaeDR3, GaiaDR2, GaiaData
 from htof.parse import HipparcosOriginalData, HipparcosRereductionJavaTool, HipparcosRereductionDVDBook
 from htof.sky_path import parallactic_motion, earth_ephemeris, earth_sun_l2_ephemeris
@@ -24,12 +23,14 @@ class Astrometry(object):
     :param use_catalog_parallax_factors: True if you want to load and use the hipparcos catalog parallax factors given
     with the IAD, or the gaia parallax factors shipped with the GOST scanning law.
     Set to False if you want to recompute the parallax factors. Default is False.
+
+    data_choice hip2or21 will attempt to see if the input data file is Hip2 (DVD) or Hip21 (java tool), then proceed accordingly.
     """
     parsers = {'gaiaedr3': GaiaeDR3, 'gaiadr2': GaiaDR2, 'gaia': GaiaData, 'hip21': HipparcosRereductionJavaTool,
-               'hip1': HipparcosOriginalData, 'hip2': HipparcosRereductionDVDBook,
+               'hip1': HipparcosOriginalData, 'hip2': HipparcosRereductionDVDBook, 'hip2or21': Hipparcos2ParserFactory,
                'hip2recalibrated': Hipparcos2Recalibrated}
     ephemeri = {'gaiadr2': earth_sun_l2_ephemeris, 'gaia': earth_sun_l2_ephemeris, 'gaiaedr3': earth_sun_l2_ephemeris,
-                'hip1': earth_ephemeris, 'hip2': earth_ephemeris, 'hip21': earth_ephemeris,
+                'hip1': earth_ephemeris, 'hip2': earth_ephemeris, 'hip21': earth_ephemeris, 'hip2or21': earth_ephemeris,
                 'hip2recalibrated': Hipparcos2Recalibrated}
 
     def __init__(self, data_choice, star_id, intermediate_data_directory, fitter=None, data=None,
@@ -44,10 +45,9 @@ class Astrometry(object):
                           f' Brandt et al. 2022 to understand the limitations of using the recalibrated data. ')     # pragma: no cover
 
         if data is None:
-            DataParser = self.parsers[data_choice.lower()]
-            data = DataParser()
-            data.parse(star_id=star_id,
-                       intermediate_data_directory=intermediate_data_directory)
+            ThisDataParser = self.parsers[data_choice.lower()]
+            data = ThisDataParser.parse_and_instantiate(star_id=star_id,
+                                                        intermediate_data_directory=intermediate_data_directory)
             data.scale_along_scan_errs(self.along_scan_error_scaling)
             data.calculate_inverse_covariance_matrices()
 

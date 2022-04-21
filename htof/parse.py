@@ -80,8 +80,16 @@ class DataParser(object):
         return data
 
     @abc.abstractmethod
-    def parse(self, star_id: str, intermediate_data_parent_directory: str, **kwargs):
+    def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
         pass    # pragma: no cover
+
+    @classmethod
+    def parse_and_instantiate(cls, star_id: str, intermediate_data_directory: str, **kwargs):
+        # ideally, this should replace the parse method above. It makes much more sense to build
+        #  a DataParser object immediately when you want to parse.
+        parser = cls()
+        parser.parse(star_id, intermediate_data_directory, **kwargs)
+        return parser
 
     def julian_day_epoch(self):
         return self._epoch.values.flatten()
@@ -211,7 +219,7 @@ class DecimalYearData(DataParser):
                                               epoch=epoch, residuals=residuals, meta=meta,
                                               inverse_covariance_matrix=inverse_covariance_matrix)
 
-    def parse(self, star_id, intermediate_data_parent_directory, **kwargs):
+    def parse(self, star_id, intermediate_data_directory, **kwargs):
         pass  # pragma: no cover
 
     def julian_day_epoch(self):

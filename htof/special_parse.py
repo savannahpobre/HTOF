@@ -10,7 +10,7 @@ from astropy.coordinates import Angle
 from scipy import stats, special
 from astropy.table import Table
 from htof.fit import AstrometricFitter
-from htof.parse import HipparcosRereductionJavaTool
+from htof.parse import HipparcosRereductionJavaTool, HipparcosRereductionDVDBook, DataParser
 
 
 class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
@@ -23,8 +23,6 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
     in the sense that we parse the data and fit it, mixing this class with an AstrometricFitter class... For now,
     this is OK because the objective of this class is mainly so other users can save and inspect the recalibrated
     hipparcos 2 IAD.
-
-    TODO: need to update raw_data, instead of just setting it to None.
 
     """
     EPOCHREJECTLIST = Table.read(pkg_resources.resource_filename('htof',
@@ -166,6 +164,27 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
         return None
 
 
+class Hipparcos2ParserFactory:
+    """
+    A factory method for HipparcosRereductionDVDBook and HipparcosRereductionJavaTool. It detects
+    which format the IAD is in, then chooses and returns the appropriate parser.
+    """
+
+    @staticmethod
+    def get_appropriate_parser(filepath):
+        datatype = get_datatype(filepath)
+        if datatype == 'hip2dvd':
+            return HipparcosRereductionDVDBook
+        if datatype == 'hip2javatool':
+            return HipparcosRereductionJavaTool
+
+    @classmethod
+    def parse_and_instantiate(cls, star_id: str, intermediate_data_directory: str, **kwargs):
+        filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        CorrectDataParser = cls.get_appropriate_parser(filepath)
+        return CorrectDataParser.parse_and_instantiate(star_id, intermediate_data_directory, **kwargs)
+
+
 def to_ra_dec_basis(value, scan_angle):
     """
     Convert values (e.g. residuals) along the direction of the scan to the same value in RA and Dec. I.e. assume the value
@@ -189,4 +208,14 @@ def to_along_scan_basis(ra_value, dec_value, scan_angle):
     """
     along_scan_value = dec_value * np.cos(scan_angle) + ra_value * np.sin(scan_angle)
     return along_scan_value
+
+
+def get_datatype(filepath):
+    with open(filepath) as f:
+        lines = f.readlines()
+    if 'This file contains residual records' in lines[0]:
+        datatype = 'hip2javatool'
+    else:
+        datatype = 'hip2dvd'
+    return datatype
 
