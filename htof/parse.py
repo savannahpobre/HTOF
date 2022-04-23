@@ -202,6 +202,38 @@ class GaiaData(DataParser):
         df = pd.DataFrame(data, columns=columns)
         return df
 
+    @staticmethod
+    def gost_file_exists(star_id: str, intermediate_data_directory: str):
+        try: 
+            # TODO fix this so that this function does not throw an error maybe?
+            DataParser.get_intermediate_data_filename(star_id, intermediate_data_directory)
+            fileexists = True
+        except FileNotFoundError:
+            fileexists = False
+        return fileexists
+
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
+        # search for the file in the intermediate_data_directory
+        fileexists = self.gost_file_exists(star_id, intermediate_data_directory)
+        if fileexists:
+            return super(DecimalYearData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+        else:
+            target = f"HIP{star_id}"
+            # fetch xml text
+            response = self.query_gost_xml(target) 
+            # parse xml text to df
+            df = self.parse_xml(response)
+
+            # TODO: trim data
+
+            # save df to disk
+            fpath = f"HIP{star_id}.csv"
+            path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+            os.makedirs(intermediate_data_directory, exist_ok=True)  
+            df.to_csv(path, index=False, index_label=False)
+            return df
+
+
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
         data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
