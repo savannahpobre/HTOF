@@ -20,6 +20,7 @@ import re
 import glob
 import itertools
 from math import ceil, floor
+import xml.etree.ElementTree as ET
 import pkg_resources
 
 from astropy.time import Time
@@ -165,19 +166,41 @@ class GaiaData(DataParser):
 
     def query_gost_xml(target):
         url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
-
         try:
             with requests.Session() as s:
                 s.get(url)
                 print(s.cookies.get_dict())
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
                 response = requests.request("GET", url, headers=headers)
-
                 return response.text
         except:
             # TODO: display error message
             print('request could not be made')
             return ""
+
+    def parse_xml(response):
+        columns = "Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"
+        data = []
+        root = ET.fromstring(response)
+        name = root.find('./targets/target/name').text
+        raR = root.find('./targets/target/coords/ra').text
+        decR = root.find('./targets/target/coords/dec').text
+        raH = root.find('./targets/target/coords/raHms').text
+        decH = root.find('./targets/target/coords/decDms').text
+        for event in root.findall('./targets/target/events/event'):
+            details = event.find('details')
+            observationTimeAtGaia = event.find('eventUtcDate').text
+            ccdRow = details.find('ccdRow').text
+            zetaFieldAngle = details.find('zetaFieldAngle').text
+            scanAngle = details.find('scanAngle').text
+            # TODO: FovP/FovF difference
+            fov = details.find('fov').text
+            parallaxFactorAl = details.find('parallaxFactorAl').text
+            parallaxFactorAc = details.find('parallaxFactorAc').text
+            observationTimeAtBarycentre = event.find('eventTcbBarycentricJulianDateAtBarycentre').text
+            data.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow, zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
+        df = pd.DataFrame(data, columns=columns)
+        return df
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
