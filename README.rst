@@ -4,11 +4,12 @@ htof
 This repo contains htof, the package for parsing intermediate data from the Gaia and
 Hipparcos satellites, and reproducing five, seven, and nine (or higher) parameter fits to their astrometry.
 
-.. image:: https://coveralls.io/repos/github/gmbrandt/HTOF/badge.svg?branch=master
-    :target: https://coveralls.io/github/gmbrandt/HTOF?branch=master
+.. image:: https://coveralls.io/repos/github/gmbrandt/HTOF/badge.svg?branch=main
+    :target: https://coveralls.io/github/gmbrandt/HTOF?branch=main
 
-.. image:: https://travis-ci.com/gmbrandt/HTOF.svg?branch=master
-    :target: https://travis-ci.com/gmbrandt/HTOF
+
+.. image:: https://app.travis-ci.com/gmbrandt/HTOF.svg?branch=main
+    :target: https://app.travis-ci.com/gmbrandt/HTOF
 
 Parallax is handled by the :code:`sky_path` module which was written by Anthony Brown
 as a part of his astrometric-sky-path package: https://github.com/agabrown/astrometric-sky-path/
