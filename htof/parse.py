@@ -21,6 +21,7 @@ import glob
 import itertools
 from math import ceil, floor
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 import pkg_resources
 
 from astropy.time import Time
@@ -164,7 +165,7 @@ class GaiaData(DataParser):
         self.min_epoch = min_epoch
         self.max_epoch = max_epoch
 
-    def query_gost_xml(target):
+    def query_gost_xml(self, target):
         url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
         try:
             with requests.Session() as s:
@@ -178,9 +179,11 @@ class GaiaData(DataParser):
             print('request could not be made')
             return ""
 
-    def parse_xml(response):
-        columns = "Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"
-        data = []
+    def parse_xml(self, response):
+        if not response:
+            raise RuntimeError("can not parse empty string")
+        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
+        rows = []
         root = ET.fromstring(response)
         name = root.find('./targets/target/name').text
         raR = root.find('./targets/target/coords/ra').text
@@ -198,9 +201,31 @@ class GaiaData(DataParser):
             parallaxFactorAl = details.find('parallaxFactorAl').text
             parallaxFactorAc = details.find('parallaxFactorAc').text
             observationTimeAtBarycentre = event.find('eventTcbBarycentricJulianDateAtBarycentre').text
-            data.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow, zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
-        df = pd.DataFrame(data, columns=columns)
-        return df
+            rows.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow, zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
+        data = pd.DataFrame(rows, columns=columns)
+        return data
+    
+    def keep_field_hits(self, data):
+        format = "%Y-%m-%dT%H:%M:%S.%f"
+        t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
+        buffer = timedelta(hours=1)
+        seq = []
+        obs = []
+        for index, row in data.iterrows():
+            rowTime = row['ObservationTimeAtGaia[UTC]']
+            t2 = datetime.strptime(rowTime, format)
+            if(t2-t1 < buffer):
+                seq.append(row)
+            else:
+                t1 = datetime.strptime(row['ObservationTimeAtGaia[UTC]'], format)
+                if len(seq) > 2:
+                    obs.append(seq[1])
+                seq = []
+                seq.append(row)
+        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
+        data = pd.DataFrame(obs, columns=columns)
+        data = data.reset_index(drop=True)
+        return data
 
     @staticmethod
     def gost_file_exists(star_id: str, intermediate_data_directory: str):
@@ -222,17 +247,15 @@ class GaiaData(DataParser):
             # fetch xml text
             response = self.query_gost_xml(target) 
             # parse xml text to df
-            df = self.parse_xml(response)
-
-            # TODO: trim data
-
+            data = self.parse_xml(response)
+            # keep first astronomic field hit of each observation
+            data = self.keep_field_hits(data)
             # save df to disk
             fpath = f"HIP{star_id}.csv"
             path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
             os.makedirs(intermediate_data_directory, exist_ok=True)  
-            df.to_csv(path, index=False, index_label=False)
-            return df
-
+            data.to_csv(path, index=False, index_label=False)
+            return data
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
