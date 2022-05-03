@@ -182,7 +182,9 @@ class GaiaData(DataParser):
     def parse_xml(self, response):
         if not response:
             raise RuntimeError("can not parse empty string")
-        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
+        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
+                   "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
+                   "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
         rows = []
         root = ET.fromstring(response)
         name = root.find('./targets/target/name').text
@@ -201,7 +203,8 @@ class GaiaData(DataParser):
             parallaxFactorAl = details.find('parallaxFactorAl').text
             parallaxFactorAc = details.find('parallaxFactorAc').text
             observationTimeAtBarycentre = event.find('eventTcbBarycentricJulianDateAtBarycentre').text
-            rows.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow, zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
+            rows.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow,
+                         zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
         data = pd.DataFrame(rows, columns=columns)
         return data
     
@@ -268,6 +271,7 @@ class GaiaData(DataParser):
         self.scan_angle = data['scanAngle[rad]']
 
     def trim_data(self, epochs, data, min_mjd, max_mjd):
+        import pdb; pdb.set_trace()
         valid = np.logical_and(epochs >= min_mjd, epochs <= max_mjd)
         return data[valid].dropna()
 

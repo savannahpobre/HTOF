@@ -363,7 +363,28 @@ class TestParseGaiaData:
 
         df2 = pd.read_csv('htof/test/data_for_tests/GaiaeDR3/IntermediateData/HIP027321.csv')
 
-        return df1.equals(df2)
+        assert df1.equals(df2)
+
+    def test_read_on_many_filepaths(self, fake_glob, fake_load):
+        test_data_directory = os.path.join(os.getcwd(), 'path/')
+        fake_glob.return_value = ['/fake/path/1232.dat', '/fake/path/23211.dat', '/fake/path/232.dat']
+
+    @mock.patch('htof.parse.GaiaData.query_gost_xml')
+    def test_fetch_from_web(self, fake_xml_download):
+        comparison_data = GaiaeDR3()
+        comparison_data.parse('27321', 'htof/test/data_for_tests/GaiaeDR3/IntermediateData')
+        # mock out the query to the internet with a pre-downloaded xml reponse.
+        with open('htof/test/data_for_tests/MockServer/HIP027321.xml') as f:
+            response = f.read()
+        fake_xml_download.return_value = response
+        # open up a temporary directory with no GOST files.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            data = GaiaeDR3()
+            data.parse('27321', tmp_dir)
+
+        assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
+        assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
+        assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
 
 
 def test_write_with_missing_info():
