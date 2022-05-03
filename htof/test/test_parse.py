@@ -342,6 +342,28 @@ class TestParseGaiaData:
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
         assert np.isclose(data.scan_angle.iloc[0], -1.7804696884345342)
+    
+    def test_gost_file_exists(self):
+        assert GaiaData.gost_file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
+
+        path = "htof/test/data_for_tests/GaiaeDR3/IntermediateData"
+        assert GaiaData.gost_file_exists(
+            star_id="027321", intermediate_data_directory=path
+        )
+
+    def test_fetch(self):
+        data = GaiaData()
+       
+        with open('htof/test/data_for_tests/MockServer/HIP027321.xml') as f:
+            response = f.read()
+        # xml text to df
+        df1 = data.parse_xml(response)
+        # trim data
+        df1 = data.keep_field_hits(df1)
+
+        df2 = pd.read_csv('htof/test/data_for_tests/GaiaeDR3/IntermediateData/HIP027321.csv')
+
+        return df1.equals(df2)
 
 
 def test_write_with_missing_info():
