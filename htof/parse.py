@@ -206,6 +206,7 @@ class GaiaData(DataParser):
             rows.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow,
                          zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
         data = pd.DataFrame(rows, columns=columns)
+        data = data.astype({"Target": str,"ra[rad]": float, "dec[rad]": float,"ra[h:m:s]": str,"dec[d:m:s]": str,"ObservationTimeAtGaia[UTC]": str,"CcdRow[1-7]": int,"zetaFieldAngle[rad]": float,"scanAngle[rad]": float,"Fov[FovP=preceding/FovF=following]": str,"parallaxFactorAlongScan": float,"parallaxFactorAcrossScan": float,"ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]": float })
         return data
     
     def keep_field_hits(self, data):
@@ -271,7 +272,6 @@ class GaiaData(DataParser):
         self.scan_angle = data['scanAngle[rad]']
 
     def trim_data(self, epochs, data, min_mjd, max_mjd):
-        import pdb; pdb.set_trace()
         valid = np.logical_and(epochs >= min_mjd, epochs <= max_mjd)
         return data[valid].dropna()
 
