@@ -351,10 +351,6 @@ class TestParseGaiaData:
             star_id="027321", intermediate_data_directory=path
         )
 
-    def test_read_on_many_filepaths(self, fake_glob, fake_load):
-        test_data_directory = os.path.join(os.getcwd(), 'path/')
-        fake_glob.return_value = ['/fake/path/1232.dat', '/fake/path/23211.dat', '/fake/path/232.dat']
-
     @mock.patch('htof.parse.GaiaData.query_gost_xml')
     def test_fetch_from_web(self, fake_xml_download):
         comparison_data = GaiaeDR3()
