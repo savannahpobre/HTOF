@@ -57,7 +57,7 @@ If the automatic download of the GOST scanning law does not work, then you will 
 do it manually with the user interface. Download a .csv of the
 predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/). In particular, using the 'submit for
 events forecast' feature on the website. One should select the widest range of dates
-possible because \codename automatically restricts the predicted epochs of observations
+possible because htof automatically restricts the predicted epochs of observations
 to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
