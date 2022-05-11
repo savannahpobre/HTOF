@@ -209,6 +209,11 @@ class TestDataParser:
             data.parse(star_id='027321',
                        intermediate_data_directory=test_data_directory)
 
+    def test_scale_along_scan_errors_raises_on_empty(self):
+        parser = DataParser()
+        with pytest.raises(ValueError):
+            parser.scale_along_scan_errs(1)
+
     @mock.patch('htof.parse.pd.read_csv', return_value=None)
     @mock.patch('htof.parse.glob.glob', return_value=['path/127321.dat', 'path/27321.dat'])
     def test_read_on_couple_similar_filepaths(self, fake_glob, fake_load):
@@ -368,6 +373,17 @@ class TestParseGaiaData:
         assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
         assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
 
+    def test_scale_along_scan_errors(self):
+        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaDR2/IntermediateData')
+        data = GaiaData(max_epoch=np.inf, min_epoch=-np.inf)
+        data.parse(intermediate_data_directory=test_data_directory,
+                   star_id='049699')
+        data.scale_along_scan_errs(0.2)
+        assert np.allclose(data.along_scan_errs, 0.2)
+        assert len(data.along_scan_errs) == len(data)
+        data.scale_along_scan_errs(1/0.2)
+        assert np.allclose(data.along_scan_errs, 1)
+
 
 def test_write_with_missing_info():
     data = DataParser(scan_angle=np.arange(3), epoch=np.arange(1991, 1994),
@@ -413,6 +429,17 @@ def test_calculating_covariance_matrices():
     for cov_matrix, scan_angle in zip(covariances, scan_angles.values.flatten()):
         assert np.isclose(scan_angle % np.pi, angle_of_short_axis_of_error_ellipse(cov_matrix) % np.pi)
         # modulo pi since the scan angle and angle of short axis could differ in sign from one another.
+
+
+def test_calculating_covariance_matrices_with_zero_al_error():
+    scan_angles = pd.DataFrame(data=np.linspace(0, 2 * np.pi, 5))
+    al_errs = np.ones(5)
+    al_errs[0] = 0
+    # calc_inverse_covariance_matrices will modify al_errs in place, whereever a value is 0, setting it to 1000
+    calc_inverse_covariance_matrices(scan_angles, along_scan_errs=al_errs,
+                                     cross_scan_along_scan_var_ratio=1)
+    assert np.allclose(al_errs[1:], 1)
+    assert np.isclose(al_errs[0], 1000)
 
 
 def test_concatenating_data():

@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
 
 setup(name='htof',
-      author='G. Mirek Brandt, Daniel Michalik',
-      version='1.0.4',
+      author='G. Mirek Brandt, Daniel Michalik, Gavin K. Hung',
+      version='1.1.1',
       python_requires='>=3.6',
       packages=find_packages(),
       package_dir={'htof': 'htof'},

@@ -83,8 +83,16 @@ class DataParser(object):
         return data
 
     @abc.abstractmethod
-    def parse(self, star_id: str, intermediate_data_parent_directory: str, **kwargs):
+    def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
         pass    # pragma: no cover
+
+    @classmethod
+    def parse_and_instantiate(cls, star_id: str, intermediate_data_directory: str, **kwargs):
+        # ideally, this should replace the parse method above. It makes much more sense to build
+        #  a DataParser object immediately when you want to parse.
+        parser = cls()
+        parser.parse(star_id, intermediate_data_directory, **kwargs)
+        return parser
 
     def julian_day_epoch(self):
         return self._epoch.values.flatten()
@@ -132,18 +140,26 @@ class DataParser(object):
         t = QTable(cols, names=['scan_angle', 'julian_day_epoch', 'residuals', 'along_scan_errs', 'icov'])
         return t
 
+    def scale_along_scan_errs(self, scaling_factor):
+        if len(self) == 0:
+            raise ValueError('Cannot scale the along scan errors, nor create uniform errors and scale those '
+                             'because this data parser does not have any data (i.e., len(self) is 0).')
+        if len(self.along_scan_errs) == 0:
+            self.along_scan_errs = pd.Series(np.ones(len(self)), dtype=np.float64)
+        self.along_scan_errs *= scaling_factor
+
     def __add__(self, other):
         all_scan_angles = pd.concat([self.scan_angle, other.scan_angle])
         all_epoch = pd.concat([pd.DataFrame(self.julian_day_epoch()), pd.DataFrame(other.julian_day_epoch())])
         all_residuals = pd.concat([self.residuals, other.residuals])
         all_along_scan_errs = pd.concat([self.along_scan_errs, other.along_scan_errs])
-        # TODO: add parallax factors. Tricky because gaia missions do not have them.
+        all_parallax_factors = pd.concat([self.parallax_factors, other.parallax_factors])
         all_inverse_covariance_matrix = safe_concatenate(self.inverse_covariance_matrix,
                                                          other.inverse_covariance_matrix)
 
         return DataParser(scan_angle=all_scan_angles, epoch=all_epoch, residuals=all_residuals,
                           inverse_covariance_matrix=all_inverse_covariance_matrix,
-                          along_scan_errs=all_along_scan_errs)
+                          along_scan_errs=all_along_scan_errs, parallax_factors=all_parallax_factors)
 
     def __radd__(self, other):
         if other == 0:
@@ -276,6 +292,7 @@ class GaiaData(DataParser):
         data = self.reject_dead_times(data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]'], data)
         self._epoch = data['ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]']
         self.scan_angle = data['scanAngle[rad]']
+        self.parallax_factors = data['parallaxFactorAlongScan']
 
     def trim_data(self, epochs, data, min_mjd, max_mjd):
         valid = np.logical_and(epochs >= min_mjd, epochs <= max_mjd)
@@ -307,7 +324,7 @@ class DecimalYearData(DataParser):
                                               epoch=epoch, residuals=residuals, meta=meta,
                                               inverse_covariance_matrix=inverse_covariance_matrix)
 
-    def parse(self, star_id, intermediate_data_parent_directory, **kwargs):
+    def parse(self, star_id, intermediate_data_directory, **kwargs):
         pass  # pragma: no cover
 
     def julian_day_epoch(self):
@@ -407,6 +424,9 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self._additional_rejected_epochs = {}  # epochs that need to be rejected due to the write out bug.
         self._rejected_epochs = {}  # epochs that are known rejects, e.g.,
         # those that have negative AL errors in the java tool
+        self._cpsi = None
+        self._spsi = None
+        self._iorb = None
 
     def read_header(self, star_id, intermediate_data_directory):
         header = self.read_intermediate_data_file(star_id, intermediate_data_directory,
@@ -446,7 +466,11 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         self.parallax_factors = data[2]
         self.meta['catalog_f2'] = header.iloc[0][6]
         self.meta['catalog_soltype'] = header.iloc[0][4]
-        # TODO need to calculate f2 newly using htof. Like we do in the java tool.
+        #
+        self._cpsi = data[3]
+        self._spsi = data[4]
+        self._iorb = data[0]
+
         n_transits, nparam, percent_rejected = header.iloc[0][2], get_nparam(header.iloc[0][4]), header.iloc[0][7]
         if attempt_adhoc_rejection:
             warnings.warn(f"For source {self.meta['star_id']}. The DVD IAD does not indicate which observation epochs were "
@@ -489,7 +513,8 @@ class HipparcosRereductionDVDBook(DecimalYearData):
         not_outlier = np.ones(len(self), dtype=bool)
         np.put(not_outlier, orbits_to_reject, False)
         self._epoch, self.scan_angle = self._epoch[not_outlier], self.scan_angle[not_outlier]
-        self.parallax_factors = self.parallax_factors[not_outlier]
+        self.parallax_factors, self._iorb = self.parallax_factors[not_outlier], self._iorb[not_outlier]
+        self._cpsi, self._spsi = self._cpsi[not_outlier], self._spsi[not_outlier]
         setattr(self, attr_to_set, value)
 
     @property
@@ -550,6 +575,10 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         self.parallax_factors = raw_data[2]
         self.meta['catalog_f2'] = header['first']['F2']
         self.meta['catalog_soltype'] = header['first']['isol_n']
+        #
+        self._cpsi = raw_data[3]
+        self._spsi = raw_data[4]
+        self._iorb = raw_data[0]
         n_transits, n_expected_transits = header['first']['NRES'], header['second']['NOB']
         n_additional_reject = int(n_transits) - int(n_expected_transits)
         # self.meta['catalog_f2'] = header.iloc[0][6]  # this is already set in HipparcosRereductionDVDBook.parse()
@@ -583,7 +612,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         # AFTER we have done the bug correction (rejected the epochs from the write out bug). This order
         # is important because the ad-hoc correction shuffles the orbits.
         if len(epochs_to_reject) > 0 and reject_known:
-            # setting self.rejected_epochs also rejects the epochs (see the @setter)
+            # setting self.rejected_epochs also rejects the epochs (see the @rejected_epochs.setter)
             self.rejected_epochs = {'residual/along_scan_error': list(epochs_to_reject),
                                     'orbit/scan_angle/time': list(epochs_to_reject)}
         # compute f2 of the residuals (with ad-hoc correction where applicable)
@@ -603,7 +632,6 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
             # should still be treated with caution.
             self.along_scan_errs *= self.error_inflation_factor(n_transits_final, nparam, self.meta['catalog_f2'])
         return header, raw_data
-
 
 
 class GaiaDR2(GaiaData):
