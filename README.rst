@@ -51,10 +51,11 @@ The following examples show how one would both load in and fit a line to the ast
 from either Hipparcos data reduction or Gaia.
 
 Gaia requires the GOST scanning law for the particular star. However, HTOF will download it for you if you do not have
-it. You should provide a valid directory though for htof to save the file into for future use.
+it. You should provide a valid directory though for htof to save the file into for future use. Currently, for the
+automatic download to work, you must provide a hipparcos name for the source (e.g., 27321).
 
-If the automatic download of the GOST scanning law does not work, then you will have to
-do it manually with the user interface. Download a .csv of the
+If the automatic download of the GOST scanning law does not work, or the source does not have a
+hipparcos ID. then you will have to download the GOST file manually with the user interface. Download a .csv of the
 predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/). In particular, using the 'submit for
 events forecast' feature on the website. One should select the widest range of dates
 possible because htof automatically restricts the predicted epochs of observations
