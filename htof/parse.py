@@ -165,23 +165,39 @@ class GaiaData(DataParser):
         self.min_epoch = min_epoch
         self.max_epoch = max_epoch
 
+    def download_gost_data(self, star_id):
+        target = f"HIP{star_id}"
+        # fetch xml text
+        response = self.query_gost_xml(target)
+        if response is None:
+            raise RuntimeError("Downloading the scanning law from GOST failed. Try again later, or download this"
+                               " file manually using the GOST online interface.")
+        # parse xml text to pandas DataFrame
+        data = self.parse_xml(response)
+        # keep first astronomic field hit of each observation
+        data = self.keep_field_hits(data)
+        return data
+
+    def save_gost_data(self, star_id: str, data: pd.DataFrame, intermediate_data_directory: str):
+        fpath = f"HIP{star_id}.csv"
+        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        os.makedirs(intermediate_data_directory, exist_ok=True)
+        data.to_csv(path, index=False, index_label=False)
+        return None
+
     def query_gost_xml(self, target):
         url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
         try:
             with requests.Session() as s:
                 s.get(url)
-                print(s.cookies.get_dict())
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
                 response = requests.request("GET", url, headers=headers)
                 return response.text
         except:
-            # TODO: display error message
-            print('request could not be made')
-            return ""
+            warnings.warn("Querying the GOST service failed.")
+            return None
 
     def parse_xml(self, response):
-        if not response:
-            raise RuntimeError("can not parse empty string")
         columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
                    "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
                    "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
@@ -247,18 +263,8 @@ class GaiaData(DataParser):
         if fileexists:
             return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
         else:
-            target = f"HIP{star_id}"
-            # fetch xml text
-            response = self.query_gost_xml(target) 
-            # parse xml text to df
-            data = self.parse_xml(response)
-            # keep first astronomic field hit of each observation
-            data = self.keep_field_hits(data)
-            # save df to disk
-            fpath = f"HIP{star_id}.csv"
-            path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
-            os.makedirs(intermediate_data_directory, exist_ok=True)  
-            data.to_csv(path, index=False, index_label=False)
+            data = self.download_gost_data(str(star_id))
+            self.save_gost_data(str(star_id), data, intermediate_data_directory)
             return data
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
