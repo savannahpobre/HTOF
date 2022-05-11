@@ -2,6 +2,7 @@
 ------------------
 - Gaia Parser classes now can fetch GOST scanning law from the GOST API. 
 - Downloaded GOST scanning laws are saved to the directory provided.
+- having the examples in an examples/ folder broke the filepaths.
 
 1.1.0 (2022-04-19)
 ------------------
