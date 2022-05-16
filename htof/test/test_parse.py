@@ -384,6 +384,44 @@ class TestParseGaiaData:
         data.scale_along_scan_errs(1/0.2)
         assert np.allclose(data.along_scan_errs, 1)
 
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    @mock.patch('htof.parse.requests.request')
+    def test_query_gost_xml(self, mock_request, mock_session):
+        # mock_session needs s.get(url) and s.cookies.get_dict() needs to have a JSESSIONID
+        mock_session.return_value = MockSession()
+        mock_request.return_value = MockSession()
+        data = GaiaData()
+        assert data.query_gost_xml('target')
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    def test_query_gost_xml_fails(self, mock_session):
+        # mock_session needs s.get(url) and s.cookies.get_dict() needs to have a JSESSIONID
+        mock_session.return_value = MockSession(pass_url_stage=False)
+        data = GaiaData()
+        assert data.query_gost_xml('target') is None
+
+
+class MockSession(object):
+    cookies = mock.Mock()
+    cookies.get_dict.return_value = {'JSESSIONID': 'session'}
+    text = True
+
+    def __init__(self, pass_url_stage=True):
+        self.pass_url_stage=pass_url_stage
+
+    def get(self, url):
+        if self.pass_url_stage:
+            return ''
+        else:
+            # force an error
+            raise RuntimeError()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
+
 
 def test_write_with_missing_info():
     data = DataParser(scan_angle=np.arange(3), epoch=np.arange(1991, 1994),
