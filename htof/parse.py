@@ -207,7 +207,8 @@ class GaiaData(DataParser):
             with requests.Session() as s:
                 s.get(url)
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
-                response = requests.request("GET", url, headers=headers)
+                response = requests.request("GET", url, headers=headers, timeout=180)
+                response.raise_for_status()
                 return response.text
         except:
             warnings.warn("Querying the GOST service failed.")
@@ -230,7 +231,6 @@ class GaiaData(DataParser):
             ccdRow = details.find('ccdRow').text
             zetaFieldAngle = details.find('zetaFieldAngle').text
             scanAngle = details.find('scanAngle').text
-            # TODO: FovP/FovF difference
             fov = details.find('fov').text
             parallaxFactorAl = details.find('parallaxFactorAl').text
             parallaxFactorAc = details.find('parallaxFactorAc').text
@@ -242,6 +242,10 @@ class GaiaData(DataParser):
         return data
     
     def keep_field_hits(self, data):
+        """ Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the 
+        star in the scanning law. The first entry is the skymapper CCD hit, and the extra entries are redundant 
+        (the hits for astrometric field CCD's 1 through 9). Only the second observation of each sequence should be saved. 
+        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)). """
         format = "%Y-%m-%dT%H:%M:%S.%f"
         t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
         buffer = timedelta(hours=1)
