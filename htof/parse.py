@@ -208,7 +208,6 @@ class GaiaData(DataParser):
                 s.get(url)
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
                 response = requests.request("GET", url, headers=headers, timeout=180)
-                response.raise_for_status()
                 return response.text
         except:
             warnings.warn("Querying the GOST service failed.")
