@@ -1,3 +1,9 @@
+1.1.1 (2022-05-10)
+------------------
+- Gaia Parser classes now can fetch GOST scanning law from the GOST API. 
+- Downloaded GOST scanning laws are saved to the directory provided.
+- having the examples in an examples/ folder broke the filepaths.
+
 1.1.0 (2022-04-19)
 ------------------
 - Added a new hip2 parser, in special_parse.py, that will add the residual offset and cosmic dispersion of 

@@ -12,6 +12,7 @@
 import numpy as np
 import pandas as pd
 from scipy import stats, special
+import requests
 import warnings
 from ast import literal_eval
 import os
@@ -19,6 +20,8 @@ import re
 import glob
 import itertools
 from math import ceil, floor
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 import pkg_resources
 
 from astropy.time import Time
@@ -177,6 +180,111 @@ class GaiaData(DataParser):
                                        inverse_covariance_matrix=inverse_covariance_matrix)
         self.min_epoch = min_epoch
         self.max_epoch = max_epoch
+
+    def download_gost_data(self, star_id):
+        target = f"HIP{star_id}"
+        # fetch xml text
+        response = self.query_gost_xml(target)
+        if response is None:
+            raise RuntimeError("Downloading the scanning law from GOST failed. Try again later, or download this"
+                               " file manually using the GOST online interface.")
+        # parse xml text to pandas DataFrame
+        data = self.parse_xml(response)
+        # keep first astronomic field hit of each observation
+        data = self.keep_field_hits(data)
+        return data
+
+    def save_gost_data(self, star_id: str, data: pd.DataFrame, intermediate_data_directory: str):
+        fpath = f"HIP{star_id}.csv"
+        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        os.makedirs(intermediate_data_directory, exist_ok=True)
+        data.to_csv(path, index=False, index_label=False)
+        return None
+
+    def query_gost_xml(self, target):
+        url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
+        try:
+            with requests.Session() as s:
+                s.get(url)
+                headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
+                response = requests.request("GET", url, headers=headers, timeout=180)
+                return response.text
+        except:
+            warnings.warn("Querying the GOST service failed.")
+            return None
+
+    def parse_xml(self, response):
+        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
+                   "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
+                   "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
+        rows = []
+        root = ET.fromstring(response)
+        name = root.find('./targets/target/name').text
+        raR = root.find('./targets/target/coords/ra').text
+        decR = root.find('./targets/target/coords/dec').text
+        raH = root.find('./targets/target/coords/raHms').text
+        decH = root.find('./targets/target/coords/decDms').text
+        for event in root.findall('./targets/target/events/event'):
+            details = event.find('details')
+            observationTimeAtGaia = event.find('eventUtcDate').text
+            ccdRow = details.find('ccdRow').text
+            zetaFieldAngle = details.find('zetaFieldAngle').text
+            scanAngle = details.find('scanAngle').text
+            fov = details.find('fov').text
+            parallaxFactorAl = details.find('parallaxFactorAl').text
+            parallaxFactorAc = details.find('parallaxFactorAc').text
+            observationTimeAtBarycentre = event.find('eventTcbBarycentricJulianDateAtBarycentre').text
+            rows.append([name, raR, decR, raH, decH, observationTimeAtGaia, ccdRow,
+                         zetaFieldAngle, scanAngle, fov, parallaxFactorAl, parallaxFactorAc, observationTimeAtBarycentre])
+        data = pd.DataFrame(rows, columns=columns)
+        data = data.astype({"Target": str,"ra[rad]": float, "dec[rad]": float,"ra[h:m:s]": str,"dec[d:m:s]": str,"ObservationTimeAtGaia[UTC]": str,"CcdRow[1-7]": int,"zetaFieldAngle[rad]": float,"scanAngle[rad]": float,"Fov[FovP=preceding/FovF=following]": str,"parallaxFactorAlongScan": float,"parallaxFactorAcrossScan": float,"ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]": float })
+        return data
+    
+    def keep_field_hits(self, data):
+        """ Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the 
+        star in the scanning law. The first entry is the skymapper CCD hit, and the extra entries are redundant 
+        (the hits for astrometric field CCD's 1 through 9). Only the second observation of each sequence should be saved. 
+        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)). """
+        format = "%Y-%m-%dT%H:%M:%S.%f"
+        t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
+        buffer = timedelta(hours=1)
+        seq = []
+        obs = []
+        for index, row in data.iterrows():
+            rowTime = row['ObservationTimeAtGaia[UTC]']
+            t2 = datetime.strptime(rowTime, format)
+            if(t2-t1 < buffer):
+                seq.append(row)
+            else:
+                t1 = datetime.strptime(row['ObservationTimeAtGaia[UTC]'], format)
+                if len(seq) > 2:
+                    obs.append(seq[1])
+                seq = []
+                seq.append(row)
+        columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]", "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]", "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
+        data = pd.DataFrame(obs, columns=columns)
+        data = data.reset_index(drop=True)
+        return data
+
+    @staticmethod
+    def gost_file_exists(star_id: str, intermediate_data_directory: str):
+        try: 
+            # TODO fix this so that this function does not throw an error maybe?
+            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+            fileexists = True
+        except FileNotFoundError:
+            fileexists = False
+        return fileexists
+
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
+        # search for the file in the intermediate_data_directory
+        fileexists = self.gost_file_exists(star_id, intermediate_data_directory)
+        if fileexists:
+            return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+        else:
+            data = self.download_gost_data(str(star_id))
+            self.save_gost_data(str(star_id), data, intermediate_data_directory)
+            return data
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id

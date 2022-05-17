@@ -38,19 +38,27 @@ while in the root directory of this repo. It can also be installed directly from
 Usage
 -----
 
-HTOF has a rich variety of usages. We encourage the reader to consult the examples/examples.ipynb jupyter notebook
+HTOF has a rich variety of usages. We encourage the reader to consult the examples.ipynb jupyter notebook
 for a set of usage examples (e.g., fitting the standard astrometric model to data, combining astrometric missions).
-However, we also go into a few basic and specific use cases in this readme.
+However, we also go into a few basic and specific use cases in this readme. Also see
+examples_recalibrating_hip2 and GenerateSyntheticGaiaAstrometry for more uses of htof.
 
 If you use HTOF, please cite the zenodo reference (https://doi.org/10.5281/zenodo.4104383) and the source paper (https://arxiv.org/abs/2109.06761)
 
 Usage: Fits without Parallax
 ----------------------------
 The following examples show how one would both load in and fit a line to the astrometric intermediate data
-from either Hipparcos data reduction or Gaia. Gaia requires you to first download a .csv of the
+from either Hipparcos data reduction or Gaia.
+
+Gaia requires the GOST scanning law for the particular star. However, HTOF will download it for you if you do not have
+it. You should provide a valid directory though for htof to save the file into for future use. Currently, for the
+automatic download to work, you must provide a hipparcos name for the source (e.g., 27321).
+
+If the automatic download of the GOST scanning law does not work, or the source does not have a
+hipparcos ID. then you will have to download the GOST file manually with the user interface. Download a .csv of the
 predicted scans and scan epochs from GOST (https://gaia.esac.esa.int/gost/). In particular, using the 'submit for
 events forecast' feature on the website. One should select the widest range of dates
-possible because \codename automatically restricts the predicted epochs of observations
+possible because htof automatically restricts the predicted epochs of observations
 to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
@@ -63,6 +71,8 @@ The following lines parse the intermediate data and fit a line.
     from htof.main import Astrometry
     import numpy as np
     astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData', format='jyear')  # parse
+    # note that if you do not have a GOST csv file with 027321 in the name, inside of
+    # 'htof/test/data_for_tests/GaiaDR2/IntermediateData' , then htof will download it for you automatically!
     ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
@@ -344,7 +354,7 @@ produce a fit which includes parallax. We now do:
     parallax, ra0, dec0, mu_ra, mu_dec = solution_vector
 
 
-For more examples, refer to the `examples/examples.ipynb` Jupyter notebook. There we will make a figure like Figure 3 from the HTOF paper.
+For more examples, refer to the `examples.ipynb` Jupyter notebook. There we will make a figure like Figure 3 from the HTOF paper.
 
 Flagged Sources
 ~~~~~~~~~~~~~~~

@@ -347,6 +347,31 @@ class TestParseGaiaData:
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
         assert np.isclose(data.scan_angle.iloc[0], -1.7804696884345342)
+    
+    def test_gost_file_exists(self):
+        assert GaiaData.gost_file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
+
+        path = "htof/test/data_for_tests/GaiaeDR3/IntermediateData"
+        assert GaiaData.gost_file_exists(
+            star_id="027321", intermediate_data_directory=path
+        )
+
+    @mock.patch('htof.parse.GaiaData.query_gost_xml')
+    def test_fetch_from_web(self, fake_xml_download):
+        comparison_data = GaiaeDR3()
+        comparison_data.parse('27321', 'htof/test/data_for_tests/GaiaeDR3/IntermediateData')
+        # mock out the query to the internet with a pre-downloaded xml reponse.
+        with open('htof/test/data_for_tests/MockServer/HIP027321.xml') as f:
+            response = f.read()
+        fake_xml_download.return_value = response
+        # open up a temporary directory with no GOST files.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            data = GaiaeDR3()
+            data.parse('27321', tmp_dir)
+
+        assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
+        assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
+        assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
 
     def test_scale_along_scan_errors(self):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaDR2/IntermediateData')
@@ -358,6 +383,44 @@ class TestParseGaiaData:
         assert len(data.along_scan_errs) == len(data)
         data.scale_along_scan_errs(1/0.2)
         assert np.allclose(data.along_scan_errs, 1)
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    @mock.patch('htof.parse.requests.request')
+    def test_query_gost_xml(self, mock_request, mock_session):
+        # mock_session needs s.get(url) and s.cookies.get_dict() needs to have a JSESSIONID
+        mock_session.return_value = MockSession()
+        mock_request.return_value = MockSession()
+        data = GaiaData()
+        assert data.query_gost_xml('target')
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    def test_query_gost_xml_fails(self, mock_session):
+        # mock_session needs s.get(url) and s.cookies.get_dict() needs to have a JSESSIONID
+        mock_session.return_value = MockSession(pass_url_stage=False)
+        data = GaiaData()
+        assert data.query_gost_xml('target') is None
+
+
+class MockSession(object):
+    cookies = mock.Mock()
+    cookies.get_dict.return_value = {'JSESSIONID': 'session'}
+    text = True
+
+    def __init__(self, pass_url_stage=True):
+        self.pass_url_stage=pass_url_stage
+
+    def get(self, url):
+        if self.pass_url_stage:
+            return ''
+        else:
+            # force an error
+            raise RuntimeError()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
 
 
 def test_write_with_missing_info():
