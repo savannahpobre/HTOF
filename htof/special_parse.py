@@ -29,7 +29,7 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
                                                                  'data/epoch_reject_shortlist.csv'), format='ascii')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, meta=None, residual_offset=0.145, cosmic_dispersion=2.15):
+                 along_scan_errs=None, meta=None, residual_offset=0.141, cosmic_dispersion=2.25):
         super(Hipparcos2Recalibrated, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                      epoch=epoch, residuals=residuals,
                                                      inverse_covariance_matrix=inverse_covariance_matrix,

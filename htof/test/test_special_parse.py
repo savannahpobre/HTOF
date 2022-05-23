@@ -21,11 +21,11 @@ class TestHip2RecalibratedParser:
 
     def test_recal_residuals(self):
         # this tests that a handful of residuals are equal to those calculated by hand
-        # when we do the recalibration. This assumes the default recalibration parameters of 2.15 CD and 0.145
-        # residual offset, so this test will fail if those default params change. This is by design.
+        # when we do the recalibration. This assumes the default recalibration parameters of 2.25 CD and 0.141
+        # residual offset, so this test will fail if those default params change.
         data = Hipparcos2Recalibrated()
         data.parse('27321', 'htof/test/data_for_tests/Hip21/')
-        comparison = [-0.12720199, -0.81727459, -1.60732196, 0.2189357, -0.35112427, -2.77118401]
+        comparison = [-0.1330, -0.8230, -1.6130, 0.2200, -0.3500, -2.7700]
         resids = np.hstack([data.residuals.values[:3], data.residuals.values[-3:]])
         assert np.allclose(comparison, resids, atol=0.001)
 
@@ -42,9 +42,8 @@ class TestHip2RecalibratedParser:
         params = [data.recalibrated_header['third'][key] for key in ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE']]
         param_errors = [data.recalibrated_header['third'][key] for key in ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE']]
 
-        comparison = np.array([-0.02631759, 0.01228683, -0.00729088, 0.05298548, 0.01326707])
-        comparison += np.array([51.44, 86.82118073, -51.06671341, 4.65, 83.10])
-        comparison_errors = np.array([0.34975472, 0.3020452, 0.33768252, 0.33901742, 0.45255402])
+        comparison = np.array([51.41, 86.83415642, -51.07508469, 4.71, 83.11])
+        comparison_errors = np.array([0.36, 0.31, 0.35, 0.35, 0.47])
         assert np.allclose(params, comparison, atol=0.01)
         assert np.allclose(param_errors, comparison_errors, atol=0.01)
 
