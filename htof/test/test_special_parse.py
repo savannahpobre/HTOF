@@ -83,8 +83,8 @@ class TestHip2RecalibratedParser:
             data.write_as_javatool_format(outpath)
             reloaded_data = HipparcosRereductionJavaTool()
             reloaded_data.parse('27321', tmp_dir, error_inflate=False, attempt_adhoc_rejection=False, reject_known=False)
-            assert np.allclose(reloaded_data.residuals, data.residuals, atol=0.001)
-            assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.001)
+            assert np.allclose(reloaded_data.residuals, data.residuals, atol=0.01)
+            assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.01)
             assert np.allclose(reloaded_data._iorb, data._iorb)
 
 
