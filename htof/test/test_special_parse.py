@@ -42,7 +42,7 @@ class TestHip2RecalibratedParser:
         params = [data.recalibrated_header['third'][key] for key in ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE']]
         param_errors = [data.recalibrated_header['third'][key] for key in ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE']]
 
-        comparison = np.array([51.41, 86.83415642, -51.07508469, 4.71, 83.11])
+        comparison = np.array([51.41, 86.82118073, -51.06671341, 4.71, 83.11])
         comparison_errors = np.array([0.36, 0.31, 0.35, 0.35, 0.47])
         assert np.allclose(params, comparison, atol=0.01)
         assert np.allclose(param_errors, comparison_errors, atol=0.01)
@@ -84,6 +84,7 @@ class TestHip2RecalibratedParser:
             reloaded_data = HipparcosRereductionJavaTool()
             reloaded_data.parse('27321', tmp_dir, error_inflate=False, attempt_adhoc_rejection=False, reject_known=False)
             assert np.allclose(reloaded_data.residuals, data.residuals, atol=0.01)
+            assert np.allclose(reloaded_data._epoch, data._epoch)
             assert np.allclose(reloaded_data.along_scan_errs, data.along_scan_errs, atol=0.01)
             assert np.allclose(reloaded_data._iorb, data._iorb)
 

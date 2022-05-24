@@ -7,6 +7,7 @@ from copy import deepcopy
 
 from astropy.time import Time
 from astropy.coordinates import Angle
+from astropy import units as u
 from scipy import stats, special
 from astropy.table import Table
 from htof.fit import AstrometricFitter
@@ -99,7 +100,11 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             for i, key, dp, in zip(np.arange(nparam),
                                    ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE', 'dpmRA', 'dpmDE', 'ddpmRA', 'ddpmDE'],
                                    [2, 8, 8, 2, 2, 2, 2, 2, 2]):
-                header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
+                if key != 'RAdeg' and key != 'DEdeg':
+                    header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
+                else:
+                    # convert the perturbation from mas to degrees.
+                    header['third'][key] = np.round(header['third'][key] + (coeffs[i] * u.mas).to(u.degree).value, dp)
             # update the errors with the new errors
             for i, key, dp, in zip(np.arange(nparam),
                                    ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE', 'e_dpmRA', 'e_dpmDE', 'e_ddpmRA', 'e_ddpmDE'],
@@ -167,15 +172,17 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
         lines[-1] += '\n'
         # populate the IAD entries
         iad_bytes = [(3, 6), (8, 14), (16, 22), (24, 30), (32, 38), (42, 46), (49, 53)]
+        significance = [None, 4, 4, 4, 4, 2, 2]  # None means values in that column will not be rounded.
         #
         line_length = 56
         for line in self.recalibrated_data.to_numpy():
-            matter = [" "] * (line_length - 1)  # strings are immutable in python. This is a gross solution to get past that.
-            for col, value, byte_start_stop in zip(np.arange(7), line, iad_bytes):
+            matter = [" "] * line_length  # strings are immutable in python. This is a gross solution to get past that.
+            for col, value, byte_start_stop, sig in zip(np.arange(7), line, iad_bytes, significance):
                 minn, maxx = min(byte_start_stop) - 1, max(byte_start_stop) - 1  # -1 because python indexes from 0.
                 final_len = 1 + maxx - minn
                 if col != 0:
-                    # left justify every column except the orbit column
+                    # left justify every column except the orbit column. Round floats also.
+                    value = value if sig is None else np.round(value, sig)
                     value = str(value) if value < 0 else ' ' + str(value)  # left pad with a space if it is positive.
                     matter[minn: maxx + 1] = list(value[:final_len].ljust(final_len, " "))
                 else:
