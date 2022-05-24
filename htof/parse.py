@@ -563,6 +563,14 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                 'dpmDE', 'e_dpmRA', 'e_dpmDE', 'ddpmRA', 'ddpmDE',
                                                 'e_ddpmRA', 'e_ddpmDE', 'upsRA', 'upsDE', 'e_upsRA',
                                                 'e_upsDE', 'var'], hline_trd)}
+        # fixing some of the value types.
+        hline_fst['MCE'] = int(hline_fst['MCE'])
+        hline_fst['HIP'] = int(hline_fst['HIP'])
+        hline_fst['isol_n'] = int(hline_fst['isol_n'])
+        hline_fst['NC'] = int(hline_fst['NC'])
+        hline_fst['SCE'] = int(hline_fst['SCE'])
+        hline_fst['isol_n'] = int(hline_fst['isol_n'])
+        hline_scd['VarAnn'] = int(hline_scd['VarAnn'])
         return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
