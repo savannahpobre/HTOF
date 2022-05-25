@@ -22,7 +22,6 @@ import itertools
 from math import ceil, floor
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from html.parser import HTMLParser
 from io import StringIO
 import pkg_resources
 
@@ -31,7 +30,7 @@ from astropy.table import QTable, Column, Table
 
 from htof import settings as st
 from htof.utils.data_utils import merge_consortia, safe_concatenate
-from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year
+from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, HipparcosOriginalDataHTMLParser
 
 import abc
 
@@ -83,6 +82,16 @@ class DataParser(object):
         iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
         return data
+    
+    @staticmethod
+    def file_exists(star_id: str, intermediate_data_directory: str):
+        try: 
+            # TODO fix this so that this function does not throw an error maybe?
+            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+            fileexists = True
+        except FileNotFoundError:
+            fileexists = False
+        return fileexists
 
     @abc.abstractmethod
     def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
@@ -268,19 +277,9 @@ class GaiaData(DataParser):
         data = data.reset_index(drop=True)
         return data
 
-    @staticmethod
-    def gost_file_exists(star_id: str, intermediate_data_directory: str):
-        try: 
-            # TODO fix this so that this function does not throw an error maybe?
-            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-            fileexists = True
-        except FileNotFoundError:
-            fileexists = False
-        return fileexists
-
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory
-        fileexists = self.gost_file_exists(star_id, intermediate_data_directory)
+        fileexists = self.file_exists(star_id, intermediate_data_directory)
         if fileexists:
             return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
         else:
@@ -377,12 +376,12 @@ class HipparcosOriginalData(DecimalYearData):
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
     def download_hip_data(self, star_id):
-        response = self.query_hip_text(star_id)
+        response = self.query_hip_html(star_id)
         if response is None:
             raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, or download this"
                                " file manually using the HIP Catalogue online interface.")
         # remove html tags
-        data = self.parse_text(response)
+        data = self.parse_html(response)
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
@@ -392,7 +391,7 @@ class HipparcosOriginalData(DecimalYearData):
             file.write(data)
         return None
 
-    def query_hip_text(self, star_id):
+    def query_hip_html(self, star_id):
         url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
         try:
             with requests.Session() as s:
@@ -402,45 +401,16 @@ class HipparcosOriginalData(DecimalYearData):
             warnings.warn("Querying the HIP service failed.")
             return None
 
-    def parse_text(self, response):
-        class Parser(HTMLParser):
-            def __init__(self):
-                super(Parser, self).__init__()
-                self.prev_tag = None
-                self.current_tag = None
-                self.data = None
-
-            def handle_starttag(self, tag, attrs):
-                self.prev_tag = self.current_tag
-                self.current_tag = tag
-            
-            def handle_data(self, data):
-                if self.prev_tag == 'pre' and self.current_tag == "b":
-                    self.data = data.strip()
-            
-            def close(self):
-                self.current_tag = None
-                self.prev_tag = None
-                super(Parser, self).close()
-                
-        parser = Parser()
+    # consider putting this method into class
+    def parse_html(self, response):
+        parser = HipparcosOriginalDataHTMLParser()
         parser.feed(response)
         parser.close()
         return parser.data
 
-    @staticmethod
-    def hip_file_exists(star_id: str, intermediate_data_directory: str):
-        try: 
-            # TODO fix this so that this function does not throw an error maybe?
-            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-            fileexists = True
-        except FileNotFoundError:
-            fileexists = False
-        return fileexists
-
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory
-        fileexists = self.hip_file_exists(star_id, intermediate_data_directory)
+        fileexists = self.file_exists(star_id, intermediate_data_directory)
         if fileexists:
             return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
         else:

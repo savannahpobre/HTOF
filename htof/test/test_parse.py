@@ -93,6 +93,44 @@ class TestHipparcosOriginalData:
                        intermediate_data_directory=test_data_directory,
                        data_choice='something')
 
+    def test_hip_file_exists(self):
+        assert HipparcosOriginalData.file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
+
+        path = "htof/test/data_for_tests/Hip1/IntermediateData"
+        assert HipparcosOriginalData.file_exists(
+            star_id="004391", intermediate_data_directory=path
+        )
+
+    @mock.patch('htof.parse.HipparcosOriginalData.query_hip_html')
+    def test_fetch_from_web(self, fake_xml_download):
+        comparison_data = HipparcosOriginalData()
+        comparison_data.parse('004391', 'htof/test/data_for_tests/Hip1')
+        # mock out the query to the internet with a pre-downloaded xml reponse.
+        with open('htof/test/data_for_tests/MockServer/004391.html') as f:
+            response = f.read()
+        fake_xml_download.return_value = response
+        # open up a temporary directory with no GOST files.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            data = HipparcosOriginalData()
+            data.parse('004391', tmp_dir)
+
+        assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
+        assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
+        assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    @mock.patch('htof.parse.requests.request')
+    def test_query_hip_html(self, mock_request, mock_session):
+        mock_session.return_value = MockSession()
+        mock_request.return_value = MockSession()
+        data = HipparcosOriginalData()
+        assert data.query_hip_html('target')
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    def test_query_hip_html_fails(self, mock_session):
+        mock_session.return_value = MockSession(pass_url_stage=False)
+        data = HipparcosOriginalData()
+        assert data.query_hip_html('target') is None
 
 class TestHipparcosRereductionDVDBook:
     def test_error_inflation_factor(self):
@@ -349,10 +387,10 @@ class TestParseGaiaData:
         assert np.isclose(data.scan_angle.iloc[0], -1.7804696884345342)
     
     def test_gost_file_exists(self):
-        assert GaiaData.gost_file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
+        assert GaiaData.file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
 
         path = "htof/test/data_for_tests/GaiaeDR3/IntermediateData"
-        assert GaiaData.gost_file_exists(
+        assert GaiaData.file_exists(
             star_id="027321", intermediate_data_directory=path
         )
 

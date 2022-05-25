@@ -1,5 +1,5 @@
 from astropy.time import Time
-
+from html.parser import HTMLParser
 
 def gaia_obmt_to_tcb_julian_year(obmt):
     """
@@ -13,3 +13,23 @@ def gaia_obmt_to_tcb_julian_year(obmt):
     """
     tcbjy = 2015 + (obmt - 1717.6256)/(1461)
     return Time(tcbjy, scale='tcb', format='jyear')
+
+class HipparcosOriginalDataHTMLParser(HTMLParser):
+    def __init__(self):
+        super(HipparcosOriginalDataHTMLParser, self).__init__()
+        self.prev_tag = None
+        self.current_tag = None
+        self.data = None
+
+    def handle_starttag(self, tag, attrs):
+        self.prev_tag = self.current_tag
+        self.current_tag = tag
+    
+    def handle_data(self, data):
+        if self.prev_tag == 'pre' and self.current_tag == "b":
+            self.data = data.strip()
+    
+    def close(self):
+        self.current_tag = None
+        self.prev_tag = None
+        super(HipparcosOriginalDataHTMLParser, self).close()
