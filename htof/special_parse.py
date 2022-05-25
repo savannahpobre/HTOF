@@ -7,6 +7,7 @@ from copy import deepcopy
 
 from astropy.time import Time
 from astropy.coordinates import Angle
+from astropy import units as u
 from scipy import stats, special
 from astropy.table import Table
 from htof.fit import AstrometricFitter
@@ -29,7 +30,7 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
                                                                  'data/epoch_reject_shortlist.csv'), format='ascii')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None,
-                 along_scan_errs=None, meta=None, residual_offset=0.145, cosmic_dispersion=2.15):
+                 along_scan_errs=None, meta=None, residual_offset=0.141, cosmic_dispersion=2.25):
         super(Hipparcos2Recalibrated, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                                      epoch=epoch, residuals=residuals,
                                                      inverse_covariance_matrix=inverse_covariance_matrix,
@@ -99,7 +100,11 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             for i, key, dp, in zip(np.arange(nparam),
                                    ['Plx', 'RAdeg', 'DEdeg', 'pm_RA', 'pm_DE', 'dpmRA', 'dpmDE', 'ddpmRA', 'ddpmDE'],
                                    [2, 8, 8, 2, 2, 2, 2, 2, 2]):
-                header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
+                if key != 'RAdeg' and key != 'DEdeg':
+                    header['third'][key] = np.round(header['third'][key] + coeffs[i], dp)
+                else:
+                    # convert the perturbation from mas to degrees.
+                    header['third'][key] = np.round(header['third'][key] + (coeffs[i] * u.mas).to(u.degree).value, dp)
             # update the errors with the new errors
             for i, key, dp, in zip(np.arange(nparam),
                                    ['e_Plx', 'e_RA', 'e_DE', 'e_pmRA', 'e_pmDE', 'e_dpmRA', 'e_dpmDE', 'e_ddpmRA', 'e_ddpmDE'],
@@ -134,30 +139,59 @@ class Hipparcos2Recalibrated(HipparcosRereductionJavaTool):
             warnings.warn('This source was NOT recalibrated, see earlier warnings as to why. Will not save any '
                           f'output file at {path} because no recalibration was done.')
             return None
+        # order of the header values:
         ks1 = ['HIP', 'MCE', 'NRES', 'NC', 'isol_n', 'SCE', 'F2', 'F1']
         ks2 = ['Hp', 'B-V', 'VarAnn', 'NOB', 'NR']
         ks3 = ['RAdeg', 'DEdeg', 'Plx', 'pm_RA', 'pm_DE', 'e_RA', 'e_DE', 'e_Plx', 'e_pmRA', 'e_pmDE',
                'dpmRA', 'dpmDE', 'e_dpmRA', 'e_dpmDE', 'ddpmRA', 'ddpmDE', 'e_ddpmRA', 'e_ddpmDE',
                'upsRA', 'upsDE', 'e_upsRA', 'e_upsDE', 'var']
+        # byte entries of each header value. Stored as (start, stop) inclusive intervals.
+        # the exact bytes are stored, according to the IAD readme, so that the output format is exactly the same.
+        bs1 = [(3, 8), (10, 15), (17, 19), (22, 22), (25, 27), (32, 35), (37, 42), (44, 45)]
+        bs2 = [(3, 9), (11, 16), (18, 18), (25, 27), (29, 31)]
+        bs3 = [(3, 14), (16, 27), (29, 36), (38, 45), (47, 54),
+               (56, 61), (63, 68), (70, 75), (77, 82), (84, 89), (91, 96),
+               (98, 103), (105, 110), (114, 119), (123, 128), (131, 136), (139, 144),
+               (149, 154), (159, 164), (167, 172), (175, 180), (184, 189), (193, 198)]
         header_template_fpath = pkg_resources.resource_filename('htof', 'data/hip2_recalibrated_header.txt')
         copy(header_template_fpath, path)  # copy the template file to the output path.
         # populate the header lines.
         f = open(path, 'r')
         lines = f.readlines()
-        for idx, hline, ks in zip([6, 8, 10], ['first', 'second', 'third'], [ks1, ks2, ks3]):
-            matter = "  ".join([str(self.recalibrated_header[hline][key]) for key in ks])
-            if hline == 'third':
-                matter = "  ".join([str(self.recalibrated_header[hline][key]) for key in ks[:3]])
-                matter += "  " + " ".join([" {:<6}".format(self.recalibrated_header[hline][key]) for key in ks[3:]])
-            lines[idx] = '# ' + matter + '\n'
+        for idx, hline, ks, bs, line_length in zip([6, 8, 10], ['first', 'second', 'third'],
+                                                   [ks1, ks2, ks3], [bs1, bs2, bs3], [48, 34, 201]):
+            matter = ["#"] + [" "] * (line_length - 1)  # strings are immutable in python. This is a gross solution to get past that.
+            for key, byte_start_stop in zip(ks, bs):
+                minn, maxx = min(byte_start_stop)-1, max(byte_start_stop)-1  # -1 because python indexes from 0.
+                final_len = 1 + maxx-minn
+                value = str(self.recalibrated_header[hline][key])
+                matter[minn: maxx + 1] = list(value[:final_len].ljust(final_len, " "))
+            matter = "".join(matter) # convert to a string instead of a list of characters.
+            lines[idx] = matter + '\n'
             lines[idx] = lines[idx].replace('nan', '---')
-        # populate the IAD entries
         lines[-1] += '\n'
+        # populate the IAD entries
+        iad_bytes = [(3, 6), (8, 14), (16, 22), (24, 30), (32, 38), (42, 46), (49, 53)]
+        significance = [None, 4, 4, 4, 4, 2, 2]  # None means values in that column will not be rounded.
+        #
+        line_length = 56
         for line in self.recalibrated_data.to_numpy():
-            # fixed width formatting
-            vals_to_write = ["{0: .4f}".format(i) for i in line[1:]]
-            line = '   {0: <5}'.format(int(line[0])) + "  ".join(vals_to_write) + "\n"
-            lines.append(line)
+            matter = [" "] * line_length  # strings are immutable in python. This is a gross solution to get past that.
+            for col, value, byte_start_stop, sig in zip(np.arange(7), line, iad_bytes, significance):
+                minn, maxx = min(byte_start_stop) - 1, max(byte_start_stop) - 1  # -1 because python indexes from 0.
+                final_len = 1 + maxx - minn
+                if col != 0:
+                    # left justify every column except the orbit column. Round floats also.
+                    value = value if sig is None else np.round(value, sig)
+                    value = str(value) if value < 0 else ' ' + str(value)  # left pad with a space if it is positive.
+                    matter[minn: maxx + 1] = list(value[:final_len].ljust(final_len, " "))
+                else:
+                    # right justify the orbit column
+                    value = str(int(value))
+                    matter[minn: maxx + 1] = list(value[:final_len].rjust(final_len, " "))
+            matter = "".join(matter) + '\n'  # convert to a string instead of a list of characters.
+            lines.append(matter)
+        # write it out to file.
         f = open(path, 'w')
         f.writelines(lines)
         f.close()

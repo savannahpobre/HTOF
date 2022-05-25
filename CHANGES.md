@@ -1,3 +1,7 @@
+1.1.2 (2022-05-23)
+------------------
+- Updated the recalibration parameters.
+
 1.1.1 (2022-05-10)
 ------------------
 - Gaia Parser classes now can fetch GOST scanning law from the GOST API. 
