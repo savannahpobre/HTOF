@@ -17,10 +17,10 @@ def gaia_obmt_to_tcb_julian_year(obmt):
 
 
 def parse_html(response):
-        parser = HipparcosOriginalDataHTMLParser()
-        parser.feed(response)
-        parser.close()
-        return parser.data
+    parser = HipparcosOriginalDataHTMLParser()
+    parser.feed(response)
+    parser.close()
+    return parser.data
 
 
 class HipparcosOriginalDataHTMLParser(HTMLParser):

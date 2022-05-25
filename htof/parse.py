@@ -407,8 +407,7 @@ class HipparcosOriginalData(DecimalYearData):
         else:
             data = self.download_hip_data(str(star_id))
             self.save_hip_data(str(star_id), data, intermediate_data_directory)
-            # use kwards instead here
-            data = pd.read_csv(StringIO(data), skiprows=10, header='infer', sep=r'\s*\|\s*', engine='python')
+            data = pd.read_csv(StringIO(data), **kwargs)
             return data 
     
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
