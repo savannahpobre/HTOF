@@ -93,14 +93,6 @@ class TestHipparcosOriginalData:
                        intermediate_data_directory=test_data_directory,
                        data_choice='something')
 
-    def test_hip_file_exists(self):
-        assert HipparcosOriginalData.file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
-
-        path = "htof/test/data_for_tests/Hip1/IntermediateData"
-        assert HipparcosOriginalData.file_exists(
-            star_id="004391", intermediate_data_directory=path
-        )
-
     @mock.patch('htof.parse.HipparcosOriginalData.query_hip_html')
     def test_fetch_from_web(self, fake_xml_download):
         comparison_data = HipparcosOriginalData()
@@ -127,10 +119,12 @@ class TestHipparcosOriginalData:
         assert data.query_hip_html('target')
 
     @mock.patch('htof.parse.requests.Session', autospec=True)
-    def test_query_hip_html_fails(self, mock_session):
-        mock_session.return_value = MockSession(pass_url_stage=False)
+    @mock.patch('htof.parse.requests.request', side_effect=ValueError)
+    def test_query_hip_html_fails(self, mock_request, mock_session):
+        mock_session.return_value = MockSession()
         data = HipparcosOriginalData()
         assert data.query_hip_html('target') is None
+
 
 class TestHipparcosRereductionDVDBook:
     def test_error_inflation_factor(self):
@@ -238,6 +232,12 @@ class TestDataParser:
             data = HipparcosRereductionDVDBook()
             data.parse(star_id='12gjas2',
                        intermediate_data_directory=test_data_directory)
+
+    def test_file_exists(self):
+        path = "htof/test/data_for_tests/Hip1/IntermediateData"
+        file_doesnt_exist = not DataParser.file_exists(star_id="1800001", intermediate_data_directory=path)
+        assert file_doesnt_exist
+        assert DataParser.file_exists(star_id="004391", intermediate_data_directory=path)
 
     @mock.patch('htof.parse.glob.glob', return_value=['path/027321.dat', 'path/027321.dat'])
     def test_parse_raises_error_on_many_files_found(self, fake_glob):
@@ -385,14 +385,6 @@ class TestParseGaiaData:
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
         assert np.isclose(data.scan_angle.iloc[0], -1.7804696884345342)
-    
-    def test_gost_file_exists(self):
-        assert GaiaData.file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
-
-        path = "htof/test/data_for_tests/GaiaeDR3/IntermediateData"
-        assert GaiaData.file_exists(
-            star_id="027321", intermediate_data_directory=path
-        )
 
     @mock.patch('htof.parse.GaiaData.query_gost_xml')
     def test_fetch_from_web(self, fake_xml_download):

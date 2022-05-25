@@ -30,7 +30,7 @@ from astropy.table import QTable, Column, Table
 
 from htof import settings as st
 from htof.utils.data_utils import merge_consortia, safe_concatenate
-from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, HipparcosOriginalDataHTMLParser
+from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, parse_html
 
 import abc
 
@@ -85,8 +85,7 @@ class DataParser(object):
     
     @staticmethod
     def file_exists(star_id: str, intermediate_data_directory: str):
-        try: 
-            # TODO fix this so that this function does not throw an error maybe?
+        try:
             DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
             fileexists = True
         except FileNotFoundError:
@@ -378,10 +377,9 @@ class HipparcosOriginalData(DecimalYearData):
     def download_hip_data(self, star_id):
         response = self.query_hip_html(star_id)
         if response is None:
-            raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, or download this"
-                               " file manually using the HIP Catalogue online interface.")
-        # remove html tags
-        data = self.parse_html(response)
+            raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, "
+                               "or download this file manually using the HIP Catalogue online interface.")
+        data = parse_html(response)
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
@@ -400,13 +398,6 @@ class HipparcosOriginalData(DecimalYearData):
         except:
             warnings.warn("Querying the HIP service failed.")
             return None
-
-    # consider putting this method into class
-    def parse_html(self, response):
-        parser = HipparcosOriginalDataHTMLParser()
-        parser.feed(response)
-        parser.close()
-        return parser.data
 
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory

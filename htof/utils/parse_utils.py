@@ -1,6 +1,7 @@
 from astropy.time import Time
 from html.parser import HTMLParser
 
+
 def gaia_obmt_to_tcb_julian_year(obmt):
     """
     convert OBMT (on board mission timeline) to TCB julian years via
@@ -14,7 +15,19 @@ def gaia_obmt_to_tcb_julian_year(obmt):
     tcbjy = 2015 + (obmt - 1717.6256)/(1461)
     return Time(tcbjy, scale='tcb', format='jyear')
 
+
+def parse_html(response):
+        parser = HipparcosOriginalDataHTMLParser()
+        parser.feed(response)
+        parser.close()
+        return parser.data
+
+
 class HipparcosOriginalDataHTMLParser(HTMLParser):
+    """
+    Pull the Hipparcos Original IAD that is hosted online, source-by-source,
+    at f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
+    """
     def __init__(self):
         super(HipparcosOriginalDataHTMLParser, self).__init__()
         self.prev_tag = None
