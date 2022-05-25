@@ -1,3 +1,7 @@
+1.1.3 (2022-05-25)
+------------------
+- HipparcosOriginalData Parser classes can now automatically download the Hip 1997 IAD.
+
 1.1.2 (2022-05-23)
 ------------------
 - Updated the recalibration parameters.

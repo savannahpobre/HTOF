@@ -22,6 +22,7 @@ import itertools
 from math import ceil, floor
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+from io import StringIO
 import pkg_resources
 
 from astropy.time import Time
@@ -29,7 +30,7 @@ from astropy.table import QTable, Column, Table
 
 from htof import settings as st
 from htof.utils.data_utils import merge_consortia, safe_concatenate
-from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year
+from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, parse_html
 
 import abc
 
@@ -81,6 +82,15 @@ class DataParser(object):
         iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
         return data
+    
+    @staticmethod
+    def file_exists(star_id: str, intermediate_data_directory: str):
+        try:
+            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+            fileexists = True
+        except FileNotFoundError:
+            fileexists = False
+        return fileexists
 
     @abc.abstractmethod
     def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
@@ -266,19 +276,9 @@ class GaiaData(DataParser):
         data = data.reset_index(drop=True)
         return data
 
-    @staticmethod
-    def gost_file_exists(star_id: str, intermediate_data_directory: str):
-        try: 
-            # TODO fix this so that this function does not throw an error maybe?
-            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-            fileexists = True
-        except FileNotFoundError:
-            fileexists = False
-        return fileexists
-
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory
-        fileexists = self.gost_file_exists(star_id, intermediate_data_directory)
+        fileexists = self.file_exists(star_id, intermediate_data_directory)
         if fileexists:
             return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
         else:
@@ -374,6 +374,42 @@ class HipparcosOriginalData(DecimalYearData):
                                                     epoch=epoch, residuals=residuals,
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
+    def download_hip_data(self, star_id):
+        response = self.query_hip_html(star_id)
+        if response is None:
+            raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, "
+                               "or download this file manually using the HIP Catalogue online interface.")
+        data = parse_html(response)
+        return data
+
+    def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
+        fpath = f"{star_id}.txt"
+        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        with open(path, 'w') as file:
+            file.write(data)
+        return None
+
+    def query_hip_html(self, star_id):
+        url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
+        try:
+            with requests.Session() as s:
+                response = requests.request("GET", url, timeout=180)
+                return response.text
+        except:
+            warnings.warn("Querying the HIP service failed.")
+            return None
+
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
+        # search for the file in the intermediate_data_directory
+        fileexists = self.file_exists(star_id, intermediate_data_directory)
+        if fileexists:
+            return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+        else:
+            data = self.download_hip_data(str(star_id))
+            self.save_hip_data(str(star_id), data, intermediate_data_directory)
+            data = pd.read_csv(StringIO(data), **kwargs)
+            return data 
+    
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
         """
         :param star_id: a string which is just the number for the HIP ID.

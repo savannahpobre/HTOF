@@ -93,6 +93,38 @@ class TestHipparcosOriginalData:
                        intermediate_data_directory=test_data_directory,
                        data_choice='something')
 
+    @mock.patch('htof.parse.HipparcosOriginalData.query_hip_html')
+    def test_fetch_from_web(self, fake_xml_download):
+        comparison_data = HipparcosOriginalData()
+        comparison_data.parse('004391', 'htof/test/data_for_tests/Hip1')
+        # mock out the query to the internet with a pre-downloaded xml reponse.
+        with open('htof/test/data_for_tests/MockServer/004391.html') as f:
+            response = f.read()
+        fake_xml_download.return_value = response
+        # open up a temporary directory with no GOST files.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            data = HipparcosOriginalData()
+            data.parse('004391', tmp_dir)
+
+        assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
+        assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
+        assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    @mock.patch('htof.parse.requests.request')
+    def test_query_hip_html(self, mock_request, mock_session):
+        mock_session.return_value = MockSession()
+        mock_request.return_value = MockSession()
+        data = HipparcosOriginalData()
+        assert data.query_hip_html('target')
+
+    @mock.patch('htof.parse.requests.Session', autospec=True)
+    @mock.patch('htof.parse.requests.request', side_effect=ValueError)
+    def test_query_hip_html_fails(self, mock_request, mock_session):
+        mock_session.return_value = MockSession()
+        data = HipparcosOriginalData()
+        assert data.query_hip_html('target') is None
+
 
 class TestHipparcosRereductionDVDBook:
     def test_error_inflation_factor(self):
@@ -200,6 +232,12 @@ class TestDataParser:
             data = HipparcosRereductionDVDBook()
             data.parse(star_id='12gjas2',
                        intermediate_data_directory=test_data_directory)
+
+    def test_file_exists(self):
+        path = "htof/test/data_for_tests/Hip1/IntermediateData"
+        file_doesnt_exist = not DataParser.file_exists(star_id="1800001", intermediate_data_directory=path)
+        assert file_doesnt_exist
+        assert DataParser.file_exists(star_id="004391", intermediate_data_directory=path)
 
     @mock.patch('htof.parse.glob.glob', return_value=['path/027321.dat', 'path/027321.dat'])
     def test_parse_raises_error_on_many_files_found(self, fake_glob):
@@ -347,14 +385,6 @@ class TestParseGaiaData:
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
         assert np.isclose(data.scan_angle.iloc[0], -1.7804696884345342)
-    
-    def test_gost_file_exists(self):
-        assert GaiaData.gost_file_exists(star_id="000000", intermediate_data_directory="htof/test/data_for_tests") == False
-
-        path = "htof/test/data_for_tests/GaiaeDR3/IntermediateData"
-        assert GaiaData.gost_file_exists(
-            star_id="027321", intermediate_data_directory=path
-        )
 
     @mock.patch('htof.parse.GaiaData.query_gost_xml')
     def test_fetch_from_web(self, fake_xml_download):
