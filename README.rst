@@ -63,7 +63,11 @@ to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
 Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
 Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
-are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1`, :code:`Hip21`, and :code:`Hip2`.
+are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1`, :code:`Hip21`, and :code:`Hip2`. HTOF will automatically
+download the intermediate data (or scanning law) for :code:`Hip1` and all :code:`Gaia` parsers. These files will be saved to the
+user-specified intermediate data directory for future use.
+One must manually download, for now, :code:`Hip21`, and :code:`Hip2`.
+
 The following lines parse the intermediate data and fit a line.
 
 .. code-block:: python
@@ -101,8 +105,6 @@ One would then point any HTOF parser to the ResRec_JavaTool folder that contains
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 
-When using Gaia, one should download the largest stretch of GOST times possible (covering at least the eDR3
-timespan, e.g., covering at least the dates BJD 2456892 to BJD 2457902).
 :code:`GaiaeDR3` will select all data corresponding to the eDR3 data interval and exclude
 eDR3 deadtimes. :code:`GaiaDR2` will select all data corresponding to the DR2 data interval (excluding dead times).
 Finally, :code:`Gaia` will select all the data present in the GOST predicted observation file that you have
