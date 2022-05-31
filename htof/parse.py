@@ -407,7 +407,10 @@ class HipparcosOriginalData(DecimalYearData):
         else:
             data = self.download_hip_data(str(star_id))
             self.save_hip_data(str(star_id), data, intermediate_data_directory)
-            data = pd.read_csv(StringIO(data), **kwargs)
+            # TODO engine='python' is used by every parser, as far as we can tell, so we should have it
+            # bundled in **kwargs and the base DataParser.read_intermediate_data_file should be fixed
+            # to have engine='python' as an additional kwarg.
+            data = pd.read_csv(StringIO(data), engine='python', **kwargs)
             return data 
     
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
