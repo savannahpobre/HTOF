@@ -192,7 +192,7 @@ class GaiaData(DataParser):
         self.max_epoch = max_epoch
 
     def download_gost_data(self, star_id):
-        if star_id < 0 or star_id > 118218:
+        if int(star_id) < 1 or int(star_id) > 118218:
             raise RuntimeError("Invalid Hipparcos star ID. HIP IDs range from 1 to 118218.")
         target = f"HIP{star_id}"
         # fetch xml text
@@ -219,7 +219,7 @@ class GaiaData(DataParser):
             with requests.Session() as s:
                 s.get(url)
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
-                response = requests.request("GET", url, headers=headers, timeout=180)
+                response = s.get(url, headers=headers, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the GOST service failed.")
@@ -377,7 +377,7 @@ class HipparcosOriginalData(DecimalYearData):
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
     def download_hip_data(self, star_id):
-        if star_id < 0 or star_id > 118218:
+        if int(star_id) < 1 or int(star_id) > 118218:
             raise RuntimeError("Invalid Hipparcos star ID. HIP IDs range from 1 to 118218.")
         response = self.query_hip_html(star_id)
         if response is None:
@@ -397,7 +397,7 @@ class HipparcosOriginalData(DecimalYearData):
         url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
         try:
             with requests.Session() as s:
-                response = requests.request("GET", url, timeout=180)
+                response = s.get(url, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the HIP service failed.")
