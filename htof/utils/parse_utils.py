@@ -20,7 +20,11 @@ def parse_html(response):
     parser = HipparcosOriginalDataHTMLParser()
     parser.feed(response)
     parser.close()
-    return parser.data
+    data = parser.data
+    if data is None or "not found" in data:
+        # TODO: add warning
+        return None
+    return data
 
 
 class HipparcosOriginalDataHTMLParser(HTMLParser):

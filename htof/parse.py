@@ -193,7 +193,7 @@ class GaiaData(DataParser):
 
     def download_gost_data(self, star_id):
         if int(star_id) < 1 or int(star_id) > 118218:
-            raise RuntimeError("Invalid Hipparcos star ID. HIP IDs range from 1 to 118218.")
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         target = f"HIP{star_id}"
         # fetch xml text
         response = self.query_gost_xml(target)
@@ -378,12 +378,14 @@ class HipparcosOriginalData(DecimalYearData):
 
     def download_hip_data(self, star_id):
         if int(star_id) < 1 or int(star_id) > 118218:
-            raise RuntimeError("Invalid Hipparcos star ID. HIP IDs range from 1 to 118218.")
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         response = self.query_hip_html(star_id)
         if response is None:
             raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, "
                                "or download this file manually using the HIP Catalogue online interface.")
         data = parse_html(response)
+        if data is None:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.") 
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
