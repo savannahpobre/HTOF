@@ -202,6 +202,8 @@ class GaiaData(DataParser):
                                " file manually using the GOST online interface.")
         # parse xml text to pandas DataFrame
         data = self.parse_xml(response)
+        if data is None:
+           raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         # keep first astronomic field hit of each observation
         data = self.keep_field_hits(data)
         return data
@@ -226,11 +228,15 @@ class GaiaData(DataParser):
             return None
 
     def parse_xml(self, response):
+        try:
+            root = ET.fromstring(response)
+        except:
+            warnings.warn("The GOST service returned an invalid xml file.")
+            return None
         columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
                    "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
                    "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
         rows = []
-        root = ET.fromstring(response)
         name = root.find('./targets/target/name').text
         raR = root.find('./targets/target/coords/ra').text
         decR = root.find('./targets/target/coords/dec').text
@@ -385,7 +391,7 @@ class HipparcosOriginalData(DecimalYearData):
                                "or download this file manually using the HIP Catalogue online interface.")
         data = parse_html(response)
         if data is None:
-            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.") 
+            raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
