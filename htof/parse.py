@@ -209,8 +209,7 @@ class GaiaData(DataParser):
         return data
 
     def save_gost_data(self, star_id: str, data: pd.DataFrame, intermediate_data_directory: str):
-        fpath = f"HIP{star_id}.csv"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        path = os.path.join(intermediate_data_directory, f"HIP{star_id}.csv")
         os.makedirs(intermediate_data_directory, exist_ok=True)
         data.to_csv(path, index=False, index_label=False)
         return None
@@ -397,8 +396,7 @@ class HipparcosOriginalData(DecimalYearData):
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
-        fpath = f"{star_id}.txt"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        path = os.path.join(intermediate_data_directory, f"{star_id}.txt")
         with open(path, 'w') as file:
             file.write(data)
         return None
