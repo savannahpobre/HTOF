@@ -259,10 +259,12 @@ class GaiaData(DataParser):
         return data
     
     def keep_field_hits(self, data):
-        """ Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the 
+        """
+        Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the
         star in the scanning law. The first entry is the skymapper CCD hit, and the extra entries are redundant 
         (the hits for astrometric field CCD's 1 through 9). Only the second observation of each sequence should be saved. 
-        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)). """
+        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)).
+        """
         format = "%Y-%m-%dT%H:%M:%S.%f"
         t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
         buffer = timedelta(hours=1)

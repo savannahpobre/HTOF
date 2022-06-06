@@ -111,17 +111,14 @@ class TestHipparcosOriginalData:
         assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
 
     @mock.patch('htof.parse.requests.Session', autospec=True)
-    @mock.patch('htof.parse.requests.request')
-    def test_query_hip_html(self, mock_request, mock_session):
+    def test_query_hip_html(self, mock_session):
         mock_session.return_value = MockSession()
-        mock_request.return_value = MockSession()
         data = HipparcosOriginalData()
         assert data.query_hip_html('target')
 
     @mock.patch('htof.parse.requests.Session', autospec=True)
-    @mock.patch('htof.parse.requests.request', side_effect=ValueError)
-    def test_query_hip_html_fails(self, mock_request, mock_session):
-        mock_session.return_value = MockSession()
+    def test_query_hip_html_fails(self, mock_session):
+        mock_session.return_value = MockSession(pass_url_stage=False)
         data = HipparcosOriginalData()
         assert data.query_hip_html('target') is None
 
@@ -415,11 +412,9 @@ class TestParseGaiaData:
         assert np.allclose(data.along_scan_errs, 1)
 
     @mock.patch('htof.parse.requests.Session', autospec=True)
-    @mock.patch('htof.parse.requests.request')
-    def test_query_gost_xml(self, mock_request, mock_session):
+    def test_query_gost_xml(self, mock_session):
         # mock_session needs s.get(url) and s.cookies.get_dict() needs to have a JSESSIONID
         mock_session.return_value = MockSession()
-        mock_request.return_value = MockSession()
         data = GaiaData()
         assert data.query_gost_xml('target')
 
@@ -434,14 +429,14 @@ class TestParseGaiaData:
 class MockSession(object):
     cookies = mock.Mock()
     cookies.get_dict.return_value = {'JSESSIONID': 'session'}
-    text = True
+    return_obj = type('', (), {'text': True})
 
     def __init__(self, pass_url_stage=True):
         self.pass_url_stage=pass_url_stage
 
-    def get(self, url):
+    def get(self, url, *args, **kwargs):
         if self.pass_url_stage:
-            return ''
+            return self.return_obj
         else:
             # force an error
             raise RuntimeError()
