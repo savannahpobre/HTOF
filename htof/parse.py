@@ -192,7 +192,7 @@ class GaiaData(DataParser):
         self.max_epoch = max_epoch
 
     def download_gost_data(self, star_id):
-        if int(star_id) < 1 or int(star_id) > 118218:
+        if int(star_id) < 1 or int(star_id) > 120404:
             raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         target = f"HIP{star_id}"
         # fetch xml text
@@ -384,7 +384,7 @@ class HipparcosOriginalData(DecimalYearData):
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
     def download_hip_data(self, star_id):
-        if int(star_id) < 1 or int(star_id) > 118218:
+        if int(star_id) < 1 or int(star_id) > 120404:
             raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         response = self.query_hip_html(star_id)
         if response is None:
