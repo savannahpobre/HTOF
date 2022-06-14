@@ -109,6 +109,16 @@ class TestHipparcosOriginalData:
         assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
         assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
         assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
+    
+    def test_fetch_from_web_on_invalid_id(self):
+        data = HipparcosOriginalData()
+        with pytest.raises(RuntimeError):
+            data.parse(star_id='-1',
+                       intermediate_data_directory='htof/test/data_for_tests')
+        with pytest.raises(RuntimeError):
+            data.parse(star_id='200000',
+                       intermediate_data_directory='htof/test/data_for_tests')
+
 
     @mock.patch('htof.parse.requests.Session', autospec=True)
     def test_query_hip_html(self, mock_session):
@@ -399,6 +409,15 @@ class TestParseGaiaData:
         assert np.allclose(data.julian_day_epoch(), comparison_data.julian_day_epoch(), atol=1/(24*60))
         assert np.allclose(data.scan_angle, comparison_data.scan_angle, atol=0.01*np.pi/180)
         assert np.allclose(data.parallax_factors, comparison_data.parallax_factors, atol=0.0001)
+
+    def test_fetch_from_web_on_invalid_id(self):
+        data = GaiaeDR3()
+        with pytest.raises(RuntimeError):
+            data.parse(star_id='-1',
+                       intermediate_data_directory='htof/test/data_for_tests')
+        with pytest.raises(RuntimeError):
+            data.parse(star_id='200000',
+                       intermediate_data_directory='htof/test/data_for_tests')
 
     def test_scale_along_scan_errors(self):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaDR2/IntermediateData')
