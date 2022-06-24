@@ -192,6 +192,8 @@ class GaiaData(DataParser):
         self.max_epoch = max_epoch
 
     def download_gost_data(self, star_id):
+        if int(star_id) < 1 or int(star_id) > 120404:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         target = f"HIP{star_id}"
         # fetch xml text
         response = self.query_gost_xml(target)
@@ -200,13 +202,14 @@ class GaiaData(DataParser):
                                " file manually using the GOST online interface.")
         # parse xml text to pandas DataFrame
         data = self.parse_xml(response)
+        if data is None:
+           raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         # keep first astronomic field hit of each observation
         data = self.keep_field_hits(data)
         return data
 
     def save_gost_data(self, star_id: str, data: pd.DataFrame, intermediate_data_directory: str):
-        fpath = f"HIP{star_id}.csv"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        path = os.path.join(intermediate_data_directory, f"HIP{star_id}.csv")
         os.makedirs(intermediate_data_directory, exist_ok=True)
         data.to_csv(path, index=False, index_label=False)
         return None
@@ -217,18 +220,22 @@ class GaiaData(DataParser):
             with requests.Session() as s:
                 s.get(url)
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
-                response = requests.request("GET", url, headers=headers, timeout=180)
+                response = s.get(url, headers=headers, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the GOST service failed.")
             return None
 
     def parse_xml(self, response):
+        try:
+            root = ET.fromstring(response)
+        except:
+            warnings.warn("The GOST service returned an invalid xml file.")
+            return None
         columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
                    "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
                    "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
         rows = []
-        root = ET.fromstring(response)
         name = root.find('./targets/target/name').text
         raR = root.find('./targets/target/coords/ra').text
         decR = root.find('./targets/target/coords/dec').text
@@ -251,10 +258,12 @@ class GaiaData(DataParser):
         return data
     
     def keep_field_hits(self, data):
-        """ Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the 
+        """
+        Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the
         star in the scanning law. The first entry is the skymapper CCD hit, and the extra entries are redundant 
         (the hits for astrometric field CCD's 1 through 9). Only the second observation of each sequence should be saved. 
-        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)). """
+        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)).
+        """
         format = "%Y-%m-%dT%H:%M:%S.%f"
         t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
         buffer = timedelta(hours=1)
@@ -375,16 +384,19 @@ class HipparcosOriginalData(DecimalYearData):
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
     def download_hip_data(self, star_id):
+        if int(star_id) < 1 or int(star_id) > 120404:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         response = self.query_hip_html(star_id)
         if response is None:
             raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, "
                                "or download this file manually using the HIP Catalogue online interface.")
         data = parse_html(response)
+        if data is None:
+            raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
-        fpath = f"{star_id}.txt"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        path = os.path.join(intermediate_data_directory, f"{star_id}.txt")
         with open(path, 'w') as file:
             file.write(data)
         return None
@@ -393,7 +405,7 @@ class HipparcosOriginalData(DecimalYearData):
         url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
         try:
             with requests.Session() as s:
-                response = requests.request("GET", url, timeout=180)
+                response = s.get(url, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the HIP service failed.")
@@ -407,7 +419,10 @@ class HipparcosOriginalData(DecimalYearData):
         else:
             data = self.download_hip_data(str(star_id))
             self.save_hip_data(str(star_id), data, intermediate_data_directory)
-            data = pd.read_csv(StringIO(data), **kwargs)
+            # TODO engine='python' is used by every parser, as far as we can tell, so we should have it
+            # bundled in **kwargs and the base DataParser.read_intermediate_data_file should be fixed
+            # to have engine='python' as an additional kwarg.
+            data = pd.read_csv(StringIO(data), engine='python', **kwargs)
             return data 
     
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):

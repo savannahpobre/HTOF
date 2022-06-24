@@ -1,6 +1,6 @@
 from astropy.time import Time
 from html.parser import HTMLParser
-
+import warnings
 
 def gaia_obmt_to_tcb_julian_year(obmt):
     """
@@ -20,7 +20,11 @@ def parse_html(response):
     parser = HipparcosOriginalDataHTMLParser()
     parser.feed(response)
     parser.close()
-    return parser.data
+    data = parser.data
+    if data is None or "not found" in data:
+        warnings.warn("The Hipparcos/Tycho Catalogue returned an empty file.")
+        return None
+    return data
 
 
 class HipparcosOriginalDataHTMLParser(HTMLParser):
