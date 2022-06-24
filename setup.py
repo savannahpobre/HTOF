@@ -8,5 +8,5 @@ setup(name='htof',
       package_dir={'htof': 'htof'},
       package_data={'htof': ['data/*.csv', 'data/*.txt']},
       setup_requires=['pytest-runner'],
-      install_requires=['astropy>=2.0', 'pandas>=0.24.0', 'scipy>=1.0.0', 'numpy>=1.16', 'requests', 'pysftp'],
+      install_requires=['astropy>=2.0', 'pandas>=0.24.0', 'scipy>=1.0.0', 'numpy>=1.16', 'requests'],
       tests_require=['pytest>=3.5'])
