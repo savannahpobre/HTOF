@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(name='htof',
       author='G. Mirek Brandt, Daniel Michalik, Gavin K. Hung',
-      version='1.1.4',
+      version='1.1.4,5',
       python_requires='>=3.6',
       packages=find_packages(),
       package_dir={'htof': 'htof'},
       package_data={'htof': ['data/*.csv', 'data/*.txt']},
       setup_requires=['pytest-runner'],
-      install_requires=['astropy>=2.0', 'pandas>=0.24.0', 'scipy>=1.0.0', 'numpy>=1.16', 'requests'],
+      install_requires=['astropy>=2.0', 'pandas>=0.24.0', 'scipy>=1.0.0', 'numpy>=1.16', 'requests', 'pysftp'],
       tests_require=['pytest>=3.5'])

@@ -22,7 +22,6 @@ import itertools
 from math import ceil, floor
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from io import StringIO
 import pkg_resources
 
 from astropy.time import Time
@@ -31,6 +30,7 @@ from astropy.table import QTable, Column, Table
 from htof import settings as st
 from htof.utils.data_utils import merge_consortia, safe_concatenate
 from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, parse_html
+from htof.utils.ftp import download_and_save_hip21_data_to
 
 import abc
 
@@ -288,12 +288,11 @@ class GaiaData(DataParser):
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory
         fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if fileexists:
-            return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
-        else:
+        if not fileexists:
+            # if the file does not exist, download it first and save it to disc.
             data = self.download_gost_data(str(star_id))
             self.save_gost_data(str(star_id), data, intermediate_data_directory)
-            return data
+        return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
@@ -414,16 +413,11 @@ class HipparcosOriginalData(DecimalYearData):
     def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
         # search for the file in the intermediate_data_directory
         fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if fileexists:
-            return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
-        else:
+        if not fileexists:
+            # download it first, and save it to disc.
             data = self.download_hip_data(str(star_id))
             self.save_hip_data(str(star_id), data, intermediate_data_directory)
-            # TODO engine='python' is used by every parser, as far as we can tell, so we should have it
-            # bundled in **kwargs and the base DataParser.read_intermediate_data_file should be fixed
-            # to have engine='python' as an additional kwarg.
-            data = pd.read_csv(StringIO(data), engine='python', **kwargs)
-            return data 
+        return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
     
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
         """
@@ -624,12 +618,20 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         hline_scd['VarAnn'] = int(hline_scd['VarAnn'])
         return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
 
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
+        # search for the file in the intermediate_data_directory
+        fileexists = self.file_exists(star_id, intermediate_data_directory)
+        if not fileexists:
+            outpath = os.path.join(intermediate_data_directory, f"{star_id}.txt")
+            download_and_save_hip21_data_to(star_id, outpath)
+        return super(HipparcosRereductionJavaTool, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
         self.meta['star_id'] = star_id
-        header = self.read_header(star_id, intermediate_data_directory)
         raw_data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                     skiprows=13, header=None, sep=r'\s+')
+        header = self.read_header(star_id, intermediate_data_directory)
         self.scan_angle = np.arctan2(raw_data[3], raw_data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = raw_data[1] + 1991.25
         self.residuals = raw_data[5]  # unit milli-arcseconds (mas)
