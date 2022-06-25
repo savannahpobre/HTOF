@@ -237,7 +237,7 @@ class TestDataParser:
         with pytest.raises(FileNotFoundError):
             test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
             data = HipparcosRereductionDVDBook()
-            data.parse(star_id='12gjas2',
+            data.parse(star_id='1222111111',
                        intermediate_data_directory=test_data_directory)
 
     def test_file_exists(self):
@@ -281,6 +281,14 @@ class TestDataParser:
     def test_match_filename(self):
         paths = ['/hip/24374.txt', 'hip/43749.txt', 'hip/43740.txt', 'hip/4374.txt']
         assert 'hip/4374.txt' == match_filename(paths, '4374')[0]
+
+    def test_match_filename_extensive(self):
+        n = 1000
+        paths = [f'path/to/file/H{str(i).zfill(6)}.d' for i in range(n)]
+        for i in range(n):
+            output = match_filename(paths, str(i))
+            assert len(output) == 1
+            assert paths[i] == output[0]
 
     @mock.patch('htof.parse.pd.read_csv', return_value=None)
     @mock.patch('htof.parse.glob.glob')
@@ -374,7 +382,7 @@ class TestParseGaiaData:
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaDR2/IntermediateData')
         data = GaiaDR2(max_epoch=np.inf, min_epoch=-np.inf)
         data.parse(intermediate_data_directory=test_data_directory,
-                   star_id='gaiatestsource01')
+                   star_id='1')
 
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
@@ -387,7 +395,7 @@ class TestParseGaiaData:
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaeDR3/IntermediateData')
         data = GaiaeDR3(max_epoch=np.inf, min_epoch=-np.inf)
         data.parse(intermediate_data_directory=test_data_directory,
-                   star_id='gaiatestsource01')
+                   star_id='1')
 
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)

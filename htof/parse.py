@@ -55,20 +55,12 @@ class DataParser(object):
     @staticmethod
     def get_intermediate_data_file_path(star_id: str, intermediate_data_directory: str):
         star_id = str(star_id)
-        filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id + '*')
-        filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # search for the star id with leading zeros stripped
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
-            filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # search for files with the full 6 digit hipparcos string
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.zfill(6) + '*')
-            filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # take the file with which contains only the hip id if there are multiple matches
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
-            filepath_list = match_filename(glob.glob(filepath, recursive=True), star_id)
+        if digits_only(star_id) != star_id:
+            raise RuntimeError('Only numeric hip_ids allowed for star_id. E.g. use "27321" instead of Hip 27321. '
+                               'Do not include any characters other than digits in the star_id.')
+        # take the file with which contains only the hip id if there are multiple matches
+        filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
+        filepath_list = match_filename(glob.glob(filepath, recursive=True), star_id)
         if len(filepath_list) == 0:
             raise FileNotFoundError('No file with name containing {0} or {1} or {2} found in {3}'
                                     ''.format(star_id, star_id.lstrip('0'), star_id.zfill(6), intermediate_data_directory))
