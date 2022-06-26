@@ -281,7 +281,8 @@ class GaiaData(DataParser):
         # search for the file in the intermediate_data_directory
         fileexists = self.file_exists(star_id, intermediate_data_directory)
         if not fileexists:
-            # if the file does not exist, download it first and save it to disc.
+            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
+            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
             data = self.download_gost_data(str(star_id))
             self.save_gost_data(str(star_id), data, intermediate_data_directory)
         return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
@@ -406,7 +407,8 @@ class HipparcosOriginalData(DecimalYearData):
         # search for the file in the intermediate_data_directory
         fileexists = self.file_exists(star_id, intermediate_data_directory)
         if not fileexists:
-            # download it first, and save it to disc.
+            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
+            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
             data = self.download_hip_data(str(star_id))
             self.save_hip_data(str(star_id), data, intermediate_data_directory)
         return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
@@ -614,7 +616,9 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         # search for the file in the intermediate_data_directory
         fileexists = self.file_exists(star_id, intermediate_data_directory)
         if not fileexists:
-            outpath = os.path.join(intermediate_data_directory, f"{star_id}.txt")
+            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
+            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+            outpath = os.path.join(intermediate_data_directory, f"{star_id}.d")
             download_and_save_hip21_data_to(star_id, outpath)
         return super(HipparcosRereductionJavaTool, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
 
