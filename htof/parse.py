@@ -388,6 +388,7 @@ class HipparcosOriginalData(DecimalYearData):
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
+        os.makedirs(intermediate_data_directory, exist_ok=True)
         path = os.path.join(intermediate_data_directory, f"{star_id}.txt")
         with open(path, 'w') as file:
             file.write(data)
@@ -618,7 +619,8 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         if not fileexists:
             print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
             print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
-            outpath = os.path.join(intermediate_data_directory, f"{star_id}.d")
+            os.makedirs(intermediate_data_directory, exist_ok=True)
+            outpath = os.path.join(intermediate_data_directory, 'H' + str(star_id).zfill(6) + '.d')
             download_and_save_hip21_data_to(star_id, outpath)
         return super(HipparcosRereductionJavaTool, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
 
