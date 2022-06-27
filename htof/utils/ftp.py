@@ -2,6 +2,8 @@ from ftplib import FTP_TLS
 
 
 def download_and_save_hip21_data_to(star_id, outpath):
+    if int(star_id) < 1 or int(star_id) > 120404:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
     file_name = 'H' + str(star_id).zfill(6) + '.d'
     subdir = file_name[:4]
     # the filepath on the anonymous@ftp.cosmos.esa.int ftp server. I think this path needs to be in the
