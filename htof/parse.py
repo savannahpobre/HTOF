@@ -74,7 +74,7 @@ class DataParser(object):
         iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
         return data
-    
+
     @staticmethod
     def file_exists(star_id: str, intermediate_data_directory: str):
         try:
