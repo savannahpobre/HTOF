@@ -48,12 +48,13 @@ the source paper (https://ui.adsabs.harvard.edu/abs/2021AJ....162..230B/abstract
 
 Usage: Fits without Parallax
 ----------------------------
-The following examples show how one would both load in and fit a line to the astrometric intermediate data
+The following examples show how one would both load in and fit a line to the intermediate astrometric data (IAD)
 from either Hipparcos data reduction or Gaia.
 
 HTOF will download any missing IAD files for you (for Hip1, Hip2 (Java tool data), and Gaia). You should
 provide a valid directory though for htof to save the file into for future use. Currently, for the
-automatic download to work, you must provide a hipparcos name for the source (e.g., 27321). Include ONLY the numeric part of the name.
+automatic download to work, you must provide a hipparcos name for the source (e.g., 27321).
+Include ONLY the numeric part of the name. For an example of downloading Gaia data, see Example 6 in examples.ipynb
 
 **For Gaia**:
 
