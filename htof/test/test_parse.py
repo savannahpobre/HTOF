@@ -233,26 +233,33 @@ class TestHipparcosRereductionJavaTool:
 
 
 class TestDataParser:
-    def test_parse_raises_file_not_found_error(self):
-        with pytest.raises(FileNotFoundError):
+    def test_parse_raises_on_no_matches_when_no_download_is_possible(self):
+        with pytest.raises(RuntimeError):
             test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
             data = HipparcosRereductionDVDBook()
             data.parse(star_id='1222111111',
                        intermediate_data_directory=test_data_directory)
 
-    def test_file_exists(self):
-        path = "htof/test/data_for_tests/Hip1/IntermediateData"
-        file_doesnt_exist = not DataParser.file_exists(star_id="1800001", intermediate_data_directory=path)
-        assert file_doesnt_exist
-        assert DataParser.file_exists(star_id="004391", intermediate_data_directory=path)
+    @mock.patch('htof.parse.match_filename', return_value=['path/122.txt', 'path/122.txt'])
+    def test_get_intermediate_data_file_multiple_matches(self, fake_match):
+        with pytest.raises(FileNotFoundError):
+            data = DataParser()
+            test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
+            data.get_intermediate_data_file_path(122, test_data_directory)
+
+    @mock.patch('htof.parse.match_filename', return_value=[])
+    def test_get_intermediate_data_file_no_matches(self, fake_match):
+        data = DataParser()
+        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
+        fpath, msg = data.get_intermediate_data_file_path(122, test_data_directory)
+        assert fpath == ''
 
     @mock.patch('htof.parse.glob.glob', return_value=['path/027321.dat', 'path/027321.dat'])
     def test_parse_raises_error_on_many_files_found(self, fake_glob):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
         data = HipparcosRereductionDVDBook()
         with pytest.raises(FileNotFoundError):
-            data.parse(star_id='027321',
-                       intermediate_data_directory=test_data_directory)
+            data.parse(star_id='027321', intermediate_data_directory=test_data_directory)
 
     def test_scale_along_scan_errors_raises_on_empty(self):
         parser = DataParser()

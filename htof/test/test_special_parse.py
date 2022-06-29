@@ -99,7 +99,7 @@ class TestHipparcos2ParserFactory:
         assert dtype == 'hip2dvd'
 
     def test_get_appropriate_parser(self):
-        parser = self.factory.get_appropriate_parser(None)
+        parser = self.factory.get_appropriate_parser('')
         assert parser is HipparcosRereductionJavaTool
         parser = self.factory.get_appropriate_parser('htof/test/data_for_tests/Hip21/IntermediateData/H027321.d')
         assert parser is HipparcosRereductionJavaTool

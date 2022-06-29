@@ -58,31 +58,31 @@ class DataParser(object):
         if digits_only(star_id) != star_id:
             raise RuntimeError('Only numeric hip_ids allowed for star_id. E.g. use "27321" instead of Hip 27321. '
                                'Do not include any characters other than digits in the star_id.')
-        # take the file with which contains only the hip id if there are multiple matches
+        # take the file(s) whose paths contain only the hip id
         filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
         filepath_list = match_filename(glob.glob(filepath, recursive=True), star_id)
-        if len(filepath_list) == 0:
-            raise FileNotFoundError('No file with name containing {0} or {1} or {2} found in {3}'
-                                    ''.format(star_id, star_id.lstrip('0'), star_id.zfill(6), intermediate_data_directory))
-        if len(filepath_list) > 1:
-            raise FileNotFoundError('Unable to find the correct file among the {0} files containing {1}'
-                                    'found in {2}'.format(len(filepath_list), star_id, intermediate_data_directory))
-        return filepath_list[0]
+        #
+        if len(filepath_list) == 1:
+            found_filepath = filepath_list[0]
+            message = ''
+        elif len(filepath_list) == 0:
+            found_filepath = ''
+            message = 'No file with name containing {0} or {1} or {2} found ' \
+                      'in {3}.'.format(star_id, star_id.lstrip('0'), star_id.zfill(6), intermediate_data_directory)
+        else: # more than 1 file found that matches exactly.
+            raise FileNotFoundError('Unable to find the correct file among the {0} files containing {1} found in '
+                                    '{2}.'.format(len(filepath_list), star_id, intermediate_data_directory))
+        return found_filepath, message
 
-    @staticmethod
-    def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
-        iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-        data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
-        return data
+    def download_and_save(self, star_id, intermediate_data_directory):
+        raise RuntimeError('Downloading the IAD from the web is not implemented for this Parser.')
 
-    @staticmethod
-    def file_exists(star_id: str, intermediate_data_directory: str):
-        try:
-            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-            fileexists = True
-        except FileNotFoundError:
-            fileexists = False
-        return fileexists
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, skiprows, header, sep):
+        filepath, msg = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        if filepath == '':  # if no file is found:
+            print(msg)
+            filepath = self.download_and_save(star_id, intermediate_data_directory)
+        return pd.read_csv(filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
 
     @abc.abstractmethod
     def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
@@ -204,7 +204,7 @@ class GaiaData(DataParser):
         path = os.path.join(intermediate_data_directory, f"HIP{star_id}.csv")
         os.makedirs(intermediate_data_directory, exist_ok=True)
         data.to_csv(path, index=False, index_label=False)
-        return None
+        return path
 
     def query_gost_xml(self, target):
         url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
@@ -277,15 +277,11 @@ class GaiaData(DataParser):
         data = data.reset_index(drop=True)
         return data
 
-    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
-        # search for the file in the intermediate_data_directory
-        fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if not fileexists:
-            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
-            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
-            data = self.download_gost_data(str(star_id))
-            self.save_gost_data(str(star_id), data, intermediate_data_directory)
-        return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        data = self.download_gost_data(str(star_id))
+        filepath = self.save_gost_data(str(star_id), data, intermediate_data_directory)
+        return filepath
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
@@ -392,7 +388,7 @@ class HipparcosOriginalData(DecimalYearData):
         path = os.path.join(intermediate_data_directory, f"{star_id}.txt")
         with open(path, 'w') as file:
             file.write(data)
-        return None
+        return path
 
     def query_hip_html(self, star_id):
         url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
@@ -404,16 +400,12 @@ class HipparcosOriginalData(DecimalYearData):
             warnings.warn("Querying the HIP service failed.")
             return None
 
-    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
-        # search for the file in the intermediate_data_directory
-        fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if not fileexists:
-            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
-            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
-            data = self.download_hip_data(str(star_id))
-            self.save_hip_data(str(star_id), data, intermediate_data_directory)
-        return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
-    
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        data = self.download_hip_data(str(star_id))
+        filepath = self.save_hip_data(str(star_id), data, intermediate_data_directory)
+        return filepath
+
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
         """
         :param star_id: a string which is just the number for the HIP ID.
@@ -589,7 +581,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                            meta=meta)
 
     def read_header(self, star_id, intermediate_data_directory):
-        fpath = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        fpath, msg = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         with open(fpath) as f:
             lines = f.readlines()
             hline_fst = [float(i) for i in lines[6].split('#')[1].split()]
@@ -613,16 +605,12 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         hline_scd['VarAnn'] = int(hline_scd['VarAnn'])
         return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
 
-    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
-        # search for the file in the intermediate_data_directory
-        fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if not fileexists:
-            print(f'No IAD file found with star id {star_id} in directory {intermediate_data_directory}.')
-            print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
-            os.makedirs(intermediate_data_directory, exist_ok=True)
-            outpath = os.path.join(intermediate_data_directory, 'H' + str(star_id).zfill(6) + '.d')
-            download_and_save_hip21_data_to(star_id, outpath)
-        return super(HipparcosRereductionJavaTool, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        os.makedirs(intermediate_data_directory, exist_ok=True)
+        filepath = os.path.join(intermediate_data_directory, 'H' + str(star_id).zfill(6) + '.d')
+        download_and_save_hip21_data_to(star_id, filepath)
+        return filepath
 
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):

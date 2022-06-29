@@ -206,7 +206,7 @@ class Hipparcos2ParserFactory:
 
     @staticmethod
     def get_appropriate_parser(filepath):
-        if filepath is None:
+        if filepath == '':
             return HipparcosRereductionJavaTool
         datatype = get_datatype(filepath)
         if datatype == 'hip2dvd':
@@ -216,12 +216,7 @@ class Hipparcos2ParserFactory:
 
     @classmethod
     def parse_and_instantiate(cls, star_id: str, intermediate_data_directory: str, **kwargs):
-        if not DataParser.file_exists(star_id, intermediate_data_directory):
-            # TODO : None should be the return value of get_intermediate_data_file_path
-            #  when the file does not exist.
-            filepath = None
-        else:
-            filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        filepath, msg = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         CorrectDataParser = cls.get_appropriate_parser(filepath)
         return CorrectDataParser.parse_and_instantiate(star_id, intermediate_data_directory, **kwargs)
 
