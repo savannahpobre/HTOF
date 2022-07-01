@@ -45,9 +45,6 @@ class MockFTP(object):
         self.login_error = login_error
         self.outpath = outpath
 
-    def __call__(self, *args, **kwargs):
-        return self
-
     def retrbinary(self, filepath, *args, **kwargs):
         basename = os.path.basename(filepath.split('RETR ')[1])
         remote_filepaths = glob.glob(os.path.join(self.fake_server_dir, basename))
