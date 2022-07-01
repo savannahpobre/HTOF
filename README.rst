@@ -43,16 +43,20 @@ for a set of usage examples (e.g., fitting the standard astrometric model to dat
 However, we also go into a few basic and specific use cases in this readme. Also see
 examples_recalibrating_hip2 and GenerateSyntheticGaiaAstrometry for more uses of htof.
 
-If you use HTOF, please cite the zenodo reference (https://doi.org/10.5281/zenodo.4104383) and the source paper (https://arxiv.org/abs/2109.06761)
+If you use HTOF, please cite the zenodo reference (https://doi.org/10.5281/zenodo.4104383) and
+the source paper (https://ui.adsabs.harvard.edu/abs/2021AJ....162..230B/abstract)
 
 Usage: Fits without Parallax
 ----------------------------
-The following examples show how one would both load in and fit a line to the astrometric intermediate data
+The following examples show how one would both load in and fit a line to the intermediate astrometric data (IAD)
 from either Hipparcos data reduction or Gaia.
 
-Gaia requires the GOST scanning law for the particular star. However, HTOF will download it for you if you do not have
-it. You should provide a valid directory though for htof to save the file into for future use. Currently, for the
+HTOF will download any missing IAD files for you (for Hip1, Hip2 (Java tool data), and Gaia). You should
+provide a valid directory though for htof to save the file into for future use. Currently, for the
 automatic download to work, you must provide a hipparcos name for the source (e.g., 27321).
+Include ONLY the numeric part of the name. For an example of downloading Gaia data, see Example 6 in examples.ipynb
+
+**For Gaia**:
 
 If the automatic download of the GOST scanning law does not work, or the source does not have a
 hipparcos ID. then you will have to download the GOST file manually with the user interface. Download a .csv of the
@@ -61,14 +65,8 @@ events forecast' feature on the website. One should select the widest range of d
 possible because htof automatically restricts the predicted epochs of observations
 to the desired data release range (e.g., EDR3) and removes any astrometric gaps.
 
-Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions.
-Assume we want to fit to data from GaiaDR2 on the star with hip id 027321. The choices of data
-are :code:`GaiaeDR3`, :code:`GaiaDR2`, :code:`Gaia`, :code:`Hip1`, :code:`Hip21`, and :code:`Hip2`. HTOF will automatically
-download the intermediate data (or scanning law) for :code:`Hip1` and all :code:`Gaia` parsers. These files will be saved to the
-user-specified intermediate data directory for future use.
-One must manually download, for now, :code:`Hip21`, and :code:`Hip2`.
-
-The following lines parse the intermediate data and fit a line.
+Let ra_vs_epoch, dec_vs_epoch be 1d arrays of ra and dec positions. Assume we want to fit to data from GaiaDR2 on the
+star with hip id 027321. The following lines parse the intermediate data and fit a line.
 
 .. code-block:: python
 
@@ -80,40 +78,43 @@ The following lines parse the intermediate data and fit a line.
     ra_vs_epoch = dec_vs_epoch = np.zeros(len(astro.data), dtype=float) # dummy set of ra and dec to fit.
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
-ra_vs_epoch and dec_vs_epoch are the positions in right ascension and declination of the object.
+
+:code:`GaiaeDR3` will select all data corresponding to the eDR3 data interval and exclude
+eDR3 deadtimes. :code:`GaiaDR2` will select all data corresponding to the DR2 data interval (excluding dead times).
+Finally, :code:`Gaia` will select all the data present in the GOST predicted observation file.
+
+Note, selecting :code:`Gaia` and allowing HTOF to download the GOST scanning law may result in a wierd coverage of the
+scanning law. We recommend sticking with defined data release intervals, so :code:`GaiaeDR3`, etc.
+
+In the :code:`astro.fit` part, ra_vs_epoch and dec_vs_epoch are the positions in right ascension and declination of the object.
 These arrays must have the same shape as astro.data.julian_day_epoch(),
-which are the epochs in the intermediate data. :code:`format='jd'` specifies
+which are the epochs in the intermediate data. :code:`format='jyear'` specifies
 the time units of the output best fit parameters. The possible choices of format
-are the same as the choices for format in astropy.time.Time(val, format=format).
-E.g. :code:`'decimalyear'`, :code:`'jd'` . If :code:`format='decimalyear'`, then the output :code:`mu_ra`
+are the same as the choices for format in astropy.time.Time(val, format=format). If :code:`format='jyear'`, then the output :code:`mu_ra`
 would have units of mas/year. If :code:`jd` then the output is mas/day. Both Hipparcos and Gaia catalogs list parallaxes
 in milli-arcseconds (mas), and so positional units are always in mas for HTOF.
 
-For Hipparcos, :code:`Hip2` refers to the DVD IAD which is now obsolete. :code:`Hip21` refers to the
+**For Hipparcos** :
+
+:code:`Hip2` refers to the DVD IAD which is now obsolete. :code:`Hip21` refers to the
 Java Tool Intermediate Astrometric Data (IAD) and best fit parameters. This is the preferred set of
 data to use with the 2007 re-reduction (preferred over the DVD IAD). The Hipparcos Java Tool data parser is meant for
 the 2014 Java tool data (Java tool first released at
 https://www.cosmos.esa.int/web/hipparcos/java-tools/intermediate-data, in 2014). As of 2021, there has not been an
-update to the Java tool. The full Java Tool Intermediate Astrometric Data should be downloaded from
+update to the Java tool.
+
+Remember, Hip21 will be automatically downloaded
+per source. But if you want to avoid downloading the data on the fly, then the full Java Tool Intermediate Astrometric Data can be downloaded from
 https://www.cosmos.esa.int/web/hipparcos/hipparcos-2 and extracted (ignore the _MACOSX folder if there is one).
 One would then point any HTOF parser to the ResRec_JavaTool folder that contains the H00 etc. subfolders of the individual IAD files. So:
 
 .. code-block:: python
 
     from htof.main import Astrometry
-    astro = Astrometry('Hip21', star_id='027321', '/home/user/Downloads/ResRec_JavaTool_2014/ResRec_JavaTool_2014', format='jd')  # parse
+    astro = Astrometry('Hip21', star_id='027321', '/home/user/Downloads/ResRec_JavaTool_2014/ResRec_JavaTool_2014', format='jyear')  # parse
     ra0, dec0, mu_ra, mu_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
 
-:code:`GaiaeDR3` will select all data corresponding to the eDR3 data interval and exclude
-eDR3 deadtimes. :code:`GaiaDR2` will select all data corresponding to the DR2 data interval (excluding dead times).
-Finally, :code:`Gaia` will select all the data present in the GOST predicted observation file that you have
-downloaded.
-
-For Hipparcos 2, the path to the intermediate data would point to :code:`IntermediateData/resrec/`.
-Note that the intermediate data files must be in the same format as the test intermediate data files found in this
-repository under :code:`htof/test/data_for_tests/`. The best fit parameters have units of mas and mas/day by default.
-The best fit skypath for right ascension is then :code:`ra0 + mu_ra * epochs`.
 
 We discuss enabling fits with parallax later. By default, the fit is a four-parameter fit: it returns the parameters to the line of best
 fit to the sky path ra_vs_epoch, dec_vs_epoch. If you want a 6 parameter or 8 parameter fit, specify
@@ -122,7 +123,7 @@ fit_degree = 2 or fit_degree = 3 respectively. E.g.
 .. code-block:: python
 
     from htof.main import Astrometry
-    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData', format='jd',
+    astro = Astrometry('GaiaDR2', '027321', 'htof/test/data_for_tests/GaiaDR2/IntermediateData', format='jyear',
                        fit_degree=2)
     ra0, dec0, mu_ra, mu_dec, acc_ra, acc_dec = astro.fit(ra_vs_epoch, dec_vs_epoch)
 
@@ -130,7 +131,7 @@ If fit_degree = 3, then the additional last two parameters would be the jerk in 
 The sky path in RA (for instance) should be reconstructed by `ra0 + mu_ra*t + 1/2*acc_ra*t**2` where `t` are the epochs
 from `astro.fitter.epoch_times` minus the central epoch for RA (if provided).
 
-HTOF allows fits of arbitrarily high degree. E.g. setting fit_degree=5 would give a 13 parameter
+HTOF allows fits of arbitrarily high degree. E.g. setting fit_degree=3 would give a 9 parameter
 fit (if using parallax as well). One should specify a central epoch for the fit, typically choosing the central epoch
 from the catalog (e.g. 2015.5 for GaiaDR2, 2016 for GaiaEDR3, 1991.25 for Hipparcos). You can specify the central epoch by:
 
@@ -146,10 +147,6 @@ The format of the central epochs must be specified along with the central epochs
 :code:`ra0 + mu_ra * (epochs - centra_epoch_ra)`. The central epoch matters for numerical stability and covariances.
 E.g., dont choose a central epoch like the year 1200 for GaiaDR2. One should almost always choose the central epoch
 from the catalog.
-
-Specifying :code:`GaiaDR2` or :code:`GaiaEDR3` will clip any intermediate data to fall within the observation
-dates which mark the period covered by data release 2 or early data release 3, respectively.
-Use :code:`Gaia` if you want any and all observations within the downloaded scanning law data.
 
 One can access the BJD epochs with
 
@@ -182,7 +179,7 @@ the residuals given in the IAD.  One could convert the residuals to the along sc
     # now residuals will be a one dimensional array of length N (number of transits), giving the residuals along the
     # scan.
 
-For Hip1 and Hip2, HTOF loads in the real
+For Hip1 and Hip21, HTOF loads in the real
 catalog errors and so the parameter error estimates (`errors`) should match those given in the catalog. For Hip2, the
 along scan errors are automatically inflated or deflated in accordance with D. Michalik et al. 2014.
 For Gaia we do not have the error estimates from the GOST tool. The AL errors are set to 1 mas by default and so the

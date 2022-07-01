@@ -31,7 +31,7 @@ class Astrometry(object):
                'hip2recalibrated': Hipparcos2Recalibrated}
     ephemeri = {'gaiadr2': earth_sun_l2_ephemeris, 'gaia': earth_sun_l2_ephemeris, 'gaiaedr3': earth_sun_l2_ephemeris,
                 'hip1': earth_ephemeris, 'hip2': earth_ephemeris, 'hip21': earth_ephemeris, 'hip2or21': earth_ephemeris,
-                'hip2recalibrated': Hipparcos2Recalibrated}
+                'hip2recalibrated': earth_ephemeris}
 
     def __init__(self, data_choice, star_id, intermediate_data_directory, fitter=None, data=None,
                  central_epoch_ra=0, central_epoch_dec=0, format='jd', fit_degree=1,

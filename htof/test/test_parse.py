@@ -5,6 +5,7 @@ import mock
 import os
 import tempfile
 from ast import literal_eval
+from htof.utils import parse_utils
 
 from astropy.table import Table
 from htof.parse import HipparcosOriginalData, HipparcosRereductionDVDBook,\
@@ -231,28 +232,41 @@ class TestHipparcosRereductionJavaTool:
         sum_chi2_partials = calculate_chisq_partials(data)
         assert sum_chi2_partials < 0.12  # assert that the IAD reflect a solution that is a stationary point
 
+    @mock.patch('htof.parse.os.makedirs', return_value=None)
+    @mock.patch('htof.parse.download_and_save_hip21_data_to', return_value=None)
+    def test_download_and_save(self, fake_save, fake_os):
+        filepath = HipparcosRereductionJavaTool().download_and_save('2222', 'adir/')
+        assert filepath == 'adir/H002222.d'
+
 
 class TestDataParser:
-    def test_parse_raises_file_not_found_error(self):
-        with pytest.raises(FileNotFoundError):
+    def test_parse_raises_on_no_matches_when_no_download_is_possible(self):
+        with pytest.raises(RuntimeError):
             test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
             data = HipparcosRereductionDVDBook()
-            data.parse(star_id='12gjas2',
+            data.parse(star_id='1222111111',
                        intermediate_data_directory=test_data_directory)
 
-    def test_file_exists(self):
-        path = "htof/test/data_for_tests/Hip1/IntermediateData"
-        file_doesnt_exist = not DataParser.file_exists(star_id="1800001", intermediate_data_directory=path)
-        assert file_doesnt_exist
-        assert DataParser.file_exists(star_id="004391", intermediate_data_directory=path)
+    @mock.patch('htof.parse.match_filename', return_value=['path/122.txt', 'path/122.txt'])
+    def test_get_intermediate_data_file_multiple_matches(self, fake_match):
+        with pytest.raises(FileNotFoundError):
+            data = DataParser()
+            test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
+            data.get_intermediate_data_file_path(122, test_data_directory)
+
+    @mock.patch('htof.parse.match_filename', return_value=[])
+    def test_get_intermediate_data_file_no_matches(self, fake_match):
+        data = DataParser()
+        test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
+        fpath, msg = data.get_intermediate_data_file_path(122, test_data_directory)
+        assert fpath == ''
 
     @mock.patch('htof.parse.glob.glob', return_value=['path/027321.dat', 'path/027321.dat'])
     def test_parse_raises_error_on_many_files_found(self, fake_glob):
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/Hip2')
         data = HipparcosRereductionDVDBook()
         with pytest.raises(FileNotFoundError):
-            data.parse(star_id='027321',
-                       intermediate_data_directory=test_data_directory)
+            data.parse(star_id='027321', intermediate_data_directory=test_data_directory)
 
     def test_scale_along_scan_errors_raises_on_empty(self):
         parser = DataParser()
@@ -281,6 +295,14 @@ class TestDataParser:
     def test_match_filename(self):
         paths = ['/hip/24374.txt', 'hip/43749.txt', 'hip/43740.txt', 'hip/4374.txt']
         assert 'hip/4374.txt' == match_filename(paths, '4374')[0]
+
+    def test_match_filename_extensive(self):
+        n = 1000
+        paths = [f'path/to/file/H{str(i).zfill(6)}.d' for i in range(n)]
+        for i in range(n):
+            output = match_filename(paths, str(i))
+            assert len(output) == 1
+            assert paths[i] == output[0]
 
     @mock.patch('htof.parse.pd.read_csv', return_value=None)
     @mock.patch('htof.parse.glob.glob')
@@ -374,7 +396,7 @@ class TestParseGaiaData:
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaDR2/IntermediateData')
         data = GaiaDR2(max_epoch=np.inf, min_epoch=-np.inf)
         data.parse(intermediate_data_directory=test_data_directory,
-                   star_id='gaiatestsource01')
+                   star_id='1')
 
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
@@ -387,7 +409,7 @@ class TestParseGaiaData:
         test_data_directory = os.path.join(os.getcwd(), 'htof/test/data_for_tests/GaiaeDR3/IntermediateData')
         data = GaiaeDR3(max_epoch=np.inf, min_epoch=-np.inf)
         data.parse(intermediate_data_directory=test_data_directory,
-                   star_id='gaiatestsource01')
+                   star_id='1')
 
         assert len(data._epoch) == 1
         assert np.isclose(data._epoch.iloc[0], 2456893.28785)
@@ -443,6 +465,9 @@ class TestParseGaiaData:
         mock_session.return_value = MockSession(pass_url_stage=False)
         data = GaiaData()
         assert data.query_gost_xml('target') is None
+
+    def test_parse_xml_fails(self):
+        assert GaiaData().parse_xml('invalid xml') is None
 
 
 class MockSession(object):
@@ -570,6 +595,12 @@ def test_two_concatenate_decyear_and_jd():
     data3 = data + data2
     assert np.allclose(data3.julian_day_epoch()[:len(data)], data.julian_day_epoch())
     assert np.allclose(data3.julian_day_epoch()[len(data):], data2.julian_day_epoch())
+
+
+def test_parse_utils_parse_html():
+    # checks that for invalid hip ids, where the html returned contains the words "not found"
+    # then the html parser returns None.
+    assert parse_utils.parse_html('data not found') is None
 
 
 def angle_of_short_axis_of_error_ellipse(cov_matrix):

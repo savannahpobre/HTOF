@@ -1,3 +1,11 @@
+1.1.5 (2022-06-24)
+------------------
+- Added the ability to download the Hipparcos re-reduction data (Java Tool Version). 
+- Slight refactor of the internals of downloading Gaia/Hip1 files from the web.
+- Crucial bug fix in get_intermediate_data_filename that sometimes would give the wrong IAD file
+for small Hip ids.
+- ONLY numeric star_ids are allowed in Parsers. E.g., 2732 is allowed and not H88iJJ2.
+
 1.1.4 (2022-06-03)
 ------------------
 - Misc bug fixes for data downloading, and warning fixes.
