@@ -2,6 +2,7 @@ from ftplib import FTP_TLS, error_perm
 import warnings
 import os
 
+
 def download_and_save_hip21_data_to(star_id, outpath):
     if int(star_id) < 1 or int(star_id) > 120404:
         raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
@@ -14,6 +15,7 @@ def download_and_save_hip21_data_to(star_id, outpath):
     HOSTNAME = "ftp.cosmos.esa.int"
     USERNAME = "anonymous"
     PASSWORD = "https://github.com/gmbrandt/HTOF" # so that the host knows where this request is coming from.
+    # Log into the ESA FTP server.
     try:
         ftps = FTP_TLS(HOSTNAME, timeout=30)
         ftps.login(USERNAME, PASSWORD)
@@ -22,21 +24,17 @@ def download_and_save_hip21_data_to(star_id, outpath):
         warnings.warn("Connecting to European Space Agency FTP failed.")
         raise RuntimeError("Connecting to European Space Agency FTP failed. Try again later, or download this"
                             " file manually.")
-    # force UTF-8 encoding
-    #ftps.encoding = "utf-8"
+    # Download the IAD file.
     try:
         # Write file in binary mode
         with open(outpath, "wb") as file:
             # Command for Downloading the file "RETR filename"
             ftps.retrbinary(f"RETR {fullpath}", file.write)
-    except error_perm:
-        os.remove(outpath)
-        warnings.warn("IAD file does not exist.")
-        raise RuntimeError(f"Can not find IAD file with star id {star_id}. The Hipparcos star ID is likely invalid.")
     except:
         os.remove(outpath)
         raise RuntimeError("Downloading the IAD file failed. Try again later, or download this"
-                            " file manually.")
+                            " file manually. Also check if the star_id is a valid Hipparcos ID.")
+    # log out of the FTP server.
     ftps.quit()
     return None
 

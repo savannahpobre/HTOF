@@ -5,6 +5,7 @@ import mock
 import os
 import tempfile
 from ast import literal_eval
+from htof.utils import parse_utils
 
 from astropy.table import Table
 from htof.parse import HipparcosOriginalData, HipparcosRereductionDVDBook,\
@@ -230,6 +231,12 @@ class TestHipparcosRereductionJavaTool:
         data.parse(star_id=hip_id, intermediate_data_directory=test_data_directory)
         sum_chi2_partials = calculate_chisq_partials(data)
         assert sum_chi2_partials < 0.12  # assert that the IAD reflect a solution that is a stationary point
+
+    @mock.patch('htof.parse.os.makedirs', return_value=None)
+    @mock.patch('htof.parse.download_and_save_hip21_data_to', return_value=None)
+    def test_download_and_save(self, fake_save, fake_os):
+        filepath = HipparcosRereductionJavaTool().download_and_save('2222', 'adir/')
+        assert filepath == 'adir/H002222.d'
 
 
 class TestDataParser:
@@ -459,6 +466,9 @@ class TestParseGaiaData:
         data = GaiaData()
         assert data.query_gost_xml('target') is None
 
+    def test_parse_xml_fails(self):
+        assert GaiaData().parse_xml('invalid xml') is None
+
 
 class MockSession(object):
     cookies = mock.Mock()
@@ -585,6 +595,12 @@ def test_two_concatenate_decyear_and_jd():
     data3 = data + data2
     assert np.allclose(data3.julian_day_epoch()[:len(data)], data.julian_day_epoch())
     assert np.allclose(data3.julian_day_epoch()[len(data):], data2.julian_day_epoch())
+
+
+def test_parse_utils_parse_html():
+    # checks that for invalid hip ids, where the html returned contains the words "not found"
+    # then the html parser returns None.
+    assert parse_utils.parse_html('data not found') is None
 
 
 def angle_of_short_axis_of_error_ellipse(cov_matrix):
