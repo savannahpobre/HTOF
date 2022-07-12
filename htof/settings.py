@@ -23,3 +23,11 @@ GaiaDR2_max_epoch = 2457532.375  # Barycentric Julian Day (BJD)
 
 GaiaeDR3_min_epoch = 2456892.375  # Barycentric Julian Day (BJD), 2014.6403 in jyear
 GaiaeDR3_max_epoch = 2457901.375  # Barycentric Julian Day (BJD), 2017.4028 in jyear
+
+#add class for DR4
+GaiaDR4_min_epoch = 2456892.375 
+GaiaDR4_max_epoch = 2456892.375 + 5 * 365
+
+#add class for DR5
+GaiaDR5_min_epoch = 2456892.375
+GaiaDR5_max_epoch = 2456892.375 + 10 * 365
