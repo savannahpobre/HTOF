@@ -22,7 +22,6 @@ import itertools
 from math import ceil, floor
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
-from io import StringIO
 import pkg_resources
 
 from astropy.time import Time
@@ -31,6 +30,7 @@ from astropy.table import QTable, Column, Table
 from htof import settings as st
 from htof.utils.data_utils import merge_consortia, safe_concatenate
 from htof.utils.parse_utils import gaia_obmt_to_tcb_julian_year, parse_html
+from htof.utils.ftp import download_and_save_hip21_data_to
 
 import abc
 
@@ -55,42 +55,34 @@ class DataParser(object):
     @staticmethod
     def get_intermediate_data_file_path(star_id: str, intermediate_data_directory: str):
         star_id = str(star_id)
-        filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id + '*')
-        filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # search for the star id with leading zeros stripped
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
-            filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # search for files with the full 6 digit hipparcos string
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.zfill(6) + '*')
-            filepath_list = glob.glob(filepath, recursive=True)
-        if len(filepath_list) != 1:
-            # take the file with which contains only the hip id if there are multiple matches
-            filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
-            filepath_list = match_filename(glob.glob(filepath, recursive=True), star_id)
-        if len(filepath_list) == 0:
-            raise FileNotFoundError('No file with name containing {0} or {1} or {2} found in {3}'
-                                    ''.format(star_id, star_id.lstrip('0'), star_id.zfill(6), intermediate_data_directory))
-        if len(filepath_list) > 1:
-            raise FileNotFoundError('Unable to find the correct file among the {0} files containing {1}'
-                                    'found in {2}'.format(len(filepath_list), star_id, intermediate_data_directory))
-        return filepath_list[0]
+        if digits_only(star_id) != star_id:
+            raise RuntimeError('Only numeric hip_ids allowed for star_id. E.g. use "27321" instead of Hip 27321. '
+                               'Do not include any characters other than digits in the star_id.')
+        # take the file(s) whose paths contain only the hip id
+        filepath = os.path.join(os.path.join(intermediate_data_directory, '**/'), '*' + star_id.lstrip('0') + '*')
+        filepath_list = match_filename(glob.glob(filepath, recursive=True), star_id)
+        #
+        if len(filepath_list) == 1:
+            found_filepath = filepath_list[0]
+            message = ''
+        elif len(filepath_list) == 0:
+            found_filepath = ''
+            message = 'No file with name containing {0} or {1} or {2} found ' \
+                      'in {3}.'.format(star_id, star_id.lstrip('0'), star_id.zfill(6), intermediate_data_directory)
+        else: # more than 1 file found that matches exactly.
+            raise FileNotFoundError('Unable to find the correct file among the {0} files containing {1} found in '
+                                    '{2}.'.format(len(filepath_list), star_id, intermediate_data_directory))
+        return found_filepath, message
 
-    @staticmethod
-    def read_intermediate_data_file(star_id: str, intermediate_data_directory: str, skiprows, header, sep):
-        iad_filepath = DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-        data = pd.read_csv(iad_filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
-        return data
-    
-    @staticmethod
-    def file_exists(star_id: str, intermediate_data_directory: str):
-        try:
-            DataParser.get_intermediate_data_file_path(star_id, intermediate_data_directory)
-            fileexists = True
-        except FileNotFoundError:
-            fileexists = False
-        return fileexists
+    def download_and_save(self, star_id, intermediate_data_directory):
+        raise RuntimeError('Downloading the IAD from the web is not implemented for this Parser.')
+
+    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, skiprows, header, sep):
+        filepath, msg = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        if filepath == '':  # if no file is found:
+            print(msg)
+            filepath = self.download_and_save(star_id, intermediate_data_directory)
+        return pd.read_csv(filepath, sep=sep, skiprows=skiprows, header=header, engine='python')
 
     @abc.abstractmethod
     def parse(self, star_id: str, intermediate_data_directory: str, **kwargs):
@@ -192,6 +184,8 @@ class GaiaData(DataParser):
         self.max_epoch = max_epoch
 
     def download_gost_data(self, star_id):
+        if int(star_id) < 1 or int(star_id) > 120404:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         target = f"HIP{star_id}"
         # fetch xml text
         response = self.query_gost_xml(target)
@@ -200,16 +194,17 @@ class GaiaData(DataParser):
                                " file manually using the GOST online interface.")
         # parse xml text to pandas DataFrame
         data = self.parse_xml(response)
+        if data is None:
+           raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         # keep first astronomic field hit of each observation
         data = self.keep_field_hits(data)
         return data
 
     def save_gost_data(self, star_id: str, data: pd.DataFrame, intermediate_data_directory: str):
-        fpath = f"HIP{star_id}.csv"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        path = os.path.join(intermediate_data_directory, f"HIP{star_id}.csv")
         os.makedirs(intermediate_data_directory, exist_ok=True)
         data.to_csv(path, index=False, index_label=False)
-        return None
+        return path
 
     def query_gost_xml(self, target):
         url = f"https://gaia.esac.esa.int/gost/GostServlet?name={target}&service=1"
@@ -217,18 +212,22 @@ class GaiaData(DataParser):
             with requests.Session() as s:
                 s.get(url)
                 headers = {"Cookie": f"JSESSIONID={s.cookies.get_dict()['JSESSIONID']}"}
-                response = requests.request("GET", url, headers=headers, timeout=180)
+                response = s.get(url, headers=headers, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the GOST service failed.")
             return None
 
     def parse_xml(self, response):
+        try:
+            root = ET.fromstring(response)
+        except:
+            warnings.warn("The GOST service returned an invalid xml file.")
+            return None
         columns = ["Target", "ra[rad]", "dec[rad]", "ra[h:m:s]", "dec[d:m:s]", "ObservationTimeAtGaia[UTC]",
                    "CcdRow[1-7]", "zetaFieldAngle[rad]", "scanAngle[rad]", "Fov[FovP=preceding/FovF=following]",
                    "parallaxFactorAlongScan", "parallaxFactorAcrossScan", "ObservationTimeAtBarycentre[BarycentricJulianDateInTCB]"]
         rows = []
-        root = ET.fromstring(response)
         name = root.find('./targets/target/name').text
         raR = root.find('./targets/target/coords/ra').text
         decR = root.find('./targets/target/coords/dec').text
@@ -251,10 +250,12 @@ class GaiaData(DataParser):
         return data
     
     def keep_field_hits(self, data):
-        """ Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the 
+        """
+        Gost files downloaded from the web through REST contain sequences of ten observations, for every observation of the
         star in the scanning law. The first entry is the skymapper CCD hit, and the extra entries are redundant 
         (the hits for astrometric field CCD's 1 through 9). Only the second observation of each sequence should be saved. 
-        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)). """
+        This function saves the second observation (this is the hit on the first astrometric field CCD (AF1)).
+        """
         format = "%Y-%m-%dT%H:%M:%S.%f"
         t1 = datetime.strptime(data['ObservationTimeAtGaia[UTC]'][0], format)
         buffer = timedelta(hours=1)
@@ -276,15 +277,11 @@ class GaiaData(DataParser):
         data = data.reset_index(drop=True)
         return data
 
-    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
-        # search for the file in the intermediate_data_directory
-        fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if fileexists:
-            return super(GaiaData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
-        else:
-            data = self.download_gost_data(str(star_id))
-            self.save_gost_data(str(star_id), data, intermediate_data_directory)
-            return data
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        data = self.download_gost_data(str(star_id))
+        filepath = self.save_gost_data(str(star_id), data, intermediate_data_directory)
+        return filepath
 
     def parse(self, star_id, intermediate_data_directory, **kwargs):
         self.meta['star_id'] = star_id
@@ -375,41 +372,40 @@ class HipparcosOriginalData(DecimalYearData):
                                                     inverse_covariance_matrix=inverse_covariance_matrix)
 
     def download_hip_data(self, star_id):
+        if int(star_id) < 1 or int(star_id) > 120404:
+            raise RuntimeError("Can not download data. The Hipparcos star ID is likely invalid.")
         response = self.query_hip_html(star_id)
         if response is None:
             raise RuntimeError("Downloading the data from the Hipparcos/Tycho Catalogue Data failed. Try again later, "
                                "or download this file manually using the HIP Catalogue online interface.")
         data = parse_html(response)
+        if data is None:
+            raise RuntimeError("Can not parse data. The Hipparcos star ID is likely invalid.") 
         return data
 
     def save_hip_data(self, star_id: str, data: str, intermediate_data_directory: str):
-        fpath = f"{star_id}.txt"
-        path = os.path.join(os.getcwd(), f"{intermediate_data_directory}/{fpath}")
+        os.makedirs(intermediate_data_directory, exist_ok=True)
+        path = os.path.join(intermediate_data_directory, f"{star_id}.txt")
         with open(path, 'w') as file:
             file.write(data)
-        return None
+        return path
 
     def query_hip_html(self, star_id):
         url = f"https://hipparcos-tools.cosmos.esa.int/cgi-bin/HIPcatalogueSearch.pl?hipiId={star_id}"
         try:
             with requests.Session() as s:
-                response = requests.request("GET", url, timeout=180)
+                response = s.get(url, timeout=180)
                 return response.text
         except:
             warnings.warn("Querying the HIP service failed.")
             return None
 
-    def read_intermediate_data_file(self, star_id: str, intermediate_data_directory: str, **kwargs):
-        # search for the file in the intermediate_data_directory
-        fileexists = self.file_exists(star_id, intermediate_data_directory)
-        if fileexists:
-            return super(HipparcosOriginalData, self).read_intermediate_data_file(star_id, intermediate_data_directory, **kwargs)
-        else:
-            data = self.download_hip_data(str(star_id))
-            self.save_hip_data(str(star_id), data, intermediate_data_directory)
-            data = pd.read_csv(StringIO(data), **kwargs)
-            return data 
-    
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        data = self.download_hip_data(str(star_id))
+        filepath = self.save_hip_data(str(star_id), data, intermediate_data_directory)
+        return filepath
+
     def parse(self, star_id, intermediate_data_directory, data_choice='MERGED'):
         """
         :param star_id: a string which is just the number for the HIP ID.
@@ -585,7 +581,7 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
                                                            meta=meta)
 
     def read_header(self, star_id, intermediate_data_directory):
-        fpath = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
+        fpath, msg = self.get_intermediate_data_file_path(star_id, intermediate_data_directory)
         with open(fpath) as f:
             lines = f.readlines()
             hline_fst = [float(i) for i in lines[6].split('#')[1].split()]
@@ -609,12 +605,19 @@ class HipparcosRereductionJavaTool(HipparcosRereductionDVDBook):
         hline_scd['VarAnn'] = int(hline_scd['VarAnn'])
         return {'first': hline_fst, 'second': hline_scd, 'third': hline_trd}
 
+    def download_and_save(self, star_id, intermediate_data_directory):
+        print(f'Attempting to download it from the web and to save it to {intermediate_data_directory}.')
+        os.makedirs(intermediate_data_directory, exist_ok=True)
+        filepath = os.path.join(intermediate_data_directory, 'H' + str(star_id).zfill(6) + '.d')
+        download_and_save_hip21_data_to(star_id, filepath)
+        return filepath
+
     def parse(self, star_id, intermediate_data_directory, error_inflate=True, attempt_adhoc_rejection=True,
               reject_known=True, **kwargs):
         self.meta['star_id'] = star_id
-        header = self.read_header(star_id, intermediate_data_directory)
         raw_data = self.read_intermediate_data_file(star_id, intermediate_data_directory,
                                                     skiprows=13, header=None, sep=r'\s+')
+        header = self.read_header(star_id, intermediate_data_directory)
         self.scan_angle = np.arctan2(raw_data[3], raw_data[4])  # data[3] = sin(theta) = cos(psi), data[4] = cos(theta) = sin(psi)
         self._epoch = raw_data[1] + 1991.25
         self.residuals = raw_data[5]  # unit milli-arcseconds (mas)
@@ -706,8 +709,8 @@ class GaiaDR4(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiaedr3_12232020.csv')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
-                 min_epoch=st.[GaiaDR4_min_epoch], max_epoch=st.[GaiaDR4_max_epoch], along_scan_errs=None):
-        super(GaiaDR4, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
+                 min_epoch=st.GaiaeDR4_min_epoch, max_epoch=st.GaiaeDR4_max_epoch, along_scan_errs=None):
+        super(GaiaeDR4, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
                                       min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
@@ -716,12 +719,11 @@ class GaiaDR5(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiaedr3_12232020.csv')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
-                 min_epoch=st.[GaiaDR5_min_epoch], max_epoch=st.[GaiaDR5_min_epoch], along_scan_errs=None):
-        super(GaiaDR5, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
+                 min_epoch=st.GaiaeDR5_min_epoch, max_epoch=st.GaiaeDR5_max_epoch, along_scan_errs=None):
+        super(GaiaeDR5, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
                                       min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
-
 
 def digits_only(x: str):
     return re.sub("[^0-9]", "", x)
