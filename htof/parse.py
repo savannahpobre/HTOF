@@ -709,8 +709,8 @@ class GaiaDR4(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiaedr3_12232020.csv')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
-                 min_epoch=st.GaiaeDR4_min_epoch, max_epoch=st.GaiaeDR4_max_epoch, along_scan_errs=None):
-        super(GaiaeDR4, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
+                 min_epoch=st.GaiaDR4_min_epoch, max_epoch=st.GaiaDR4_max_epoch, along_scan_errs=None):
+        super(GaiaDR4, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
                                       min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
@@ -719,8 +719,8 @@ class GaiaDR5(GaiaData):
     DEAD_TIME_TABLE_NAME = pkg_resources.resource_filename('htof', 'data/astrometric_gaps_gaiaedr3_12232020.csv')
 
     def __init__(self, scan_angle=None, epoch=None, residuals=None, inverse_covariance_matrix=None, meta=None,
-                 min_epoch=st.GaiaeDR5_min_epoch, max_epoch=st.GaiaeDR5_max_epoch, along_scan_errs=None):
-        super(GaiaeDR5, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
+                 min_epoch=st.GaiaDR5_min_epoch, max_epoch=st.GaiaDR5_max_epoch, along_scan_errs=None):
+        super(GaiaDR5, self).__init__(scan_angle=scan_angle, along_scan_errs=along_scan_errs,
                                       epoch=epoch, residuals=residuals,
                                       inverse_covariance_matrix=inverse_covariance_matrix,
                                       min_epoch=min_epoch, max_epoch=max_epoch, meta=meta)
